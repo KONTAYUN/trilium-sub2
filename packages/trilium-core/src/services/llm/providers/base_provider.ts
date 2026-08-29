@@ -379,6 +379,11 @@ export abstract class BaseProvider implements LlmProvider {
         return undefined;
     }
 
+    /** Whether AI SDK calls should carry Trilium's output-token limit. */
+    protected shouldSendMaxOutputTokens(): boolean {
+        return true;
+    }
+
     /**
      * Add provider-specific web search tool. Override in subclasses that support it.
      */
@@ -413,7 +418,7 @@ export abstract class BaseProvider implements LlmProvider {
             model: this.createModel(config.model || this.defaultModel),
             system: this.buildSystemMessage(systemPrompt),
             messages: coreMessages,
-            maxOutputTokens: config.maxTokens || DEFAULT_MAX_TOKENS,
+            ...(this.shouldSendMaxOutputTokens() && { maxOutputTokens: config.maxTokens || DEFAULT_MAX_TOKENS }),
             ...(providerOptions && { providerOptions }),
             // Reject any system message smuggled into `messages` (prompt injection guard).
             allowSystemInMessages: false,
@@ -539,7 +544,7 @@ export abstract class BaseProvider implements LlmProvider {
         const providerOptions = this.buildProviderOptions();
         const { text, finishReason, usage } = await generateText({
             model: this.createModel(modelId),
-            maxOutputTokens,
+            ...(this.shouldSendMaxOutputTokens() && { maxOutputTokens }),
             telemetry: TELEMETRY_OFF,
             ...(providerOptions && { providerOptions }),
             messages: [

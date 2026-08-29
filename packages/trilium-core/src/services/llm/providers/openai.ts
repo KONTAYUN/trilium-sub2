@@ -65,6 +65,11 @@ export class OpenAiProvider extends BaseProvider {
         };
     }
 
+    /** OAuth-backed stateless Responses endpoints reject max_output_tokens. */
+    protected override shouldSendMaxOutputTokens(): boolean {
+        return !this.statelessResponses;
+    }
+
     /** Stateless Responses titles must stay on the exact chat model and endpoint. */
     async generateTitleForCurrentModel(firstMessage: string, modelId: string): Promise<string> {
         return this.generateTitleWithModel(firstMessage, modelId);

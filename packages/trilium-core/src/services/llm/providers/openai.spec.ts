@@ -98,6 +98,8 @@ describe("OpenAiProvider chat", () => {
 
         expect(streamTextMock.mock.calls[0][0]).not.toHaveProperty("providerOptions");
         expect(generateTextMock.mock.calls[0][0]).not.toHaveProperty("providerOptions");
+        expect(streamTextMock.mock.calls[0][0]).toHaveProperty("maxOutputTokens", 8096);
+        expect(generateTextMock.mock.calls[0][0]).toHaveProperty("maxOutputTokens", 30);
         expect(modelMock.mock.calls.map(call => call[0])).toEqual(["gpt-4.1", "gpt-4.1-mini"]);
         expect(generateTextMock).toHaveBeenCalledOnce();
     });
@@ -114,6 +116,8 @@ describe("OpenAiProvider chat", () => {
         expect(streamOptions.stopWhen).toBeDefined();
         expect((generateTextMock.mock.calls[0][0] as any).providerOptions)
             .toEqual({ openai: { store: false } });
+        expect(streamOptions).not.toHaveProperty("maxOutputTokens");
+        expect(generateTextMock.mock.calls[0][0]).not.toHaveProperty("maxOutputTokens");
     });
 
     it("merges a supported reasoning effort with stateless mode and leaves titles at the model default", async () => {
@@ -127,9 +131,11 @@ describe("OpenAiProvider chat", () => {
         expect(streamTextMock.mock.calls[0][0]).toMatchObject({
             providerOptions: { openai: { store: false, reasoningEffort: "max" } }
         });
+        expect(streamTextMock.mock.calls[0][0]).not.toHaveProperty("maxOutputTokens");
         expect(generateTextMock.mock.calls[0][0]).toMatchObject({
             providerOptions: { openai: { store: false } }
         });
+        expect(generateTextMock.mock.calls[0][0]).not.toHaveProperty("maxOutputTokens");
         expect(modelMock.mock.calls.map(call => call[0])).toEqual(["gpt-5.6-luna", "gpt-5.6-luna"]);
     });
 
@@ -141,6 +147,7 @@ describe("OpenAiProvider chat", () => {
         });
 
         expect(streamTextMock.mock.calls[0][0]).toMatchObject({
+            maxOutputTokens: 8096,
             providerOptions: { openai: { reasoningEffort: "high" } }
         });
         expect((streamTextMock.mock.calls[0][0] as any).providerOptions.openai)
