@@ -26,6 +26,7 @@ permissions: {}
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: kontayun/trilium-sub2
+  UPSTREAM_URL: https://github.com/TriliumNext/Trilium.git
 
 jobs:
   build-and-push:
@@ -58,6 +59,14 @@ jobs:
             exit 1
           fi
 
+          official_tag="${RELEASE_TAG%%-sub2.*}"
+          official_ref="refs/sub2/upstream-tags/${official_tag}"
+          if ! git fetch --no-tags "${UPSTREAM_URL}" "refs/tags/${official_tag}:${official_ref}"; then
+            echo "::error::Official tag does not exist in TriliumNext/Trilium: ${official_tag}"
+            exit 1
+          fi
+          official_commit="$(git rev-parse --verify "${official_ref}^{commit}")"
+
           auth_header="$(printf 'x-access-token:%s' "${GH_TOKEN}" | base64 | tr -d '\n')"
           export GIT_CONFIG_COUNT=1
           export GIT_CONFIG_KEY_0=http.extraheader
@@ -81,6 +90,14 @@ jobs:
             echo "::error::Checkout is not the commit referenced by ${RELEASE_TAG}"
             exit 1
           fi
+          if ! git merge-base --is-ancestor "${official_commit}" "${tag_commit}"; then
+            echo "::error::Official baseline ${official_tag} is not an ancestor of ${RELEASE_TAG}."
+            exit 1
+          fi
+
+          echo "Official baseline: ${official_tag} (${official_commit})"
+          echo "OFFICIAL_TAG=${official_tag}" >> "${GITHUB_ENV}"
+          echo "OFFICIAL_COMMIT=${official_commit}" >> "${GITHUB_ENV}"
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v6
@@ -135,17 +152,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          official_baseline="$(
-            git tag --merged HEAD --list "v*" |
-              grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' |
-              sort -V |
-              tail -n 1 || true
-          )"
-          if [[ -z "${official_baseline}" ]]; then
-            echo "::error::Unable to identify the official stable baseline for ${RELEASE_TAG}."
+          if [[ -z "${OFFICIAL_TAG:-}" || -z "${OFFICIAL_COMMIT:-}" ]]; then
+            echo "::error::Official baseline was not resolved for ${RELEASE_TAG}."
             exit 1
           fi
-          git diff --check "${official_baseline}^{commit}..HEAD"
+          if ! git merge-base --is-ancestor "${OFFICIAL_COMMIT}" HEAD; then
+            echo "::error::Official baseline ${OFFICIAL_TAG} is not an ancestor of ${RELEASE_TAG}."
+            exit 1
+          fi
+          git diff --check "${OFFICIAL_COMMIT}..HEAD"
           git diff --check
 
       - name: Check clean worktree
