@@ -95,6 +95,8 @@ export interface LlmChatConfig {
     enableExtendedThinking?: boolean;
     /** Token budget for extended thinking (default: 10000) */
     thinkingBudget?: number;
+    /** Provider-specific reasoning effort selected for this chat (for example OpenAI "medium" or "max"). */
+    reasoningEffort?: string;
     /** Current note context (note ID the user is viewing) */
     contextNoteId?: string;
     /** The note ID of the chat note (used for auto-renaming on first message) */
@@ -135,6 +137,10 @@ export interface LlmModelInfo {
     recommended?: boolean;
     /** Maximum context window size in tokens */
     contextWindow?: number;
+    /** Reasoning effort values explicitly supported by this model. */
+    supportedReasoningEfforts?: string[];
+    /** Reasoning effort to select when a chat first switches to this model. */
+    defaultReasoningEffort?: string;
     /** Whether usage is covered by a subscription plan rather than metered per token */
     isSubscription?: boolean;
 }

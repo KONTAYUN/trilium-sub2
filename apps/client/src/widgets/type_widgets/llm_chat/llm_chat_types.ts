@@ -174,4 +174,6 @@ export interface LlmChatContent {
     enableWebSearch?: boolean;
     enableNoteTools?: boolean;
     enableExtendedThinking?: boolean;
+    /** OpenAI reasoning effort selected for this chat, when supported by the active model. */
+    reasoningEffort?: string;
 }

@@ -111,6 +111,42 @@ describe("OpenAiProvider chat", () => {
         expect((generateTextMock.mock.calls[0][0] as any).providerOptions)
             .toEqual({ openai: { store: false } });
     });
+
+    it("merges a supported reasoning effort with stateless mode", () => {
+        const provider = new OpenAiProvider("sk-test", "https://sub2api.example/v1", true);
+        provider.chat([{ role: "user", content: "hi" }], {
+            model: "gpt-5.6-luna",
+            reasoningEffort: "max"
+        });
+
+        expect(streamTextMock.mock.calls[0][0]).toMatchObject({
+            providerOptions: { openai: { store: false, reasoningEffort: "max" } }
+        });
+    });
+
+    it("sends reasoning effort independently of stateless mode", () => {
+        const provider = new OpenAiProvider("sk-test");
+        provider.chat([{ role: "user", content: "hi" }], {
+            model: "gpt-5.6-luna",
+            reasoningEffort: "high"
+        });
+
+        expect(streamTextMock.mock.calls[0][0]).toMatchObject({
+            providerOptions: { openai: { reasoningEffort: "high" } }
+        });
+        expect((streamTextMock.mock.calls[0][0] as any).providerOptions.openai)
+            .not.toHaveProperty("store");
+    });
+
+    it("does not guess reasoning support for an unknown OpenAI model", () => {
+        const provider = new OpenAiProvider("sk-test");
+        provider.chat([{ role: "user", content: "hi" }], {
+            model: "custom-reasoner",
+            reasoningEffort: "max"
+        });
+
+        expect(streamTextMock.mock.calls[0][0]).not.toHaveProperty("providerOptions");
+    });
 });
 
 describe("OpenAiProvider model listing", () => {
@@ -125,6 +161,29 @@ describe("OpenAiProvider model listing", () => {
     });
 
     const okJson = (body: unknown) => ({ ok: true, json: async () => body });
+
+    it("combines GPT-5.6 Luna price/context metadata with reasoning capabilities", () => {
+        const luna = new OpenAiProvider("sk-test").getAvailableModels().find(model => model.id === "gpt-5.6-luna");
+        expect(luna).toMatchObject({
+            contextWindow: 1_050_000,
+            pricing: { input: 0.2, output: 1.2 },
+            supportedReasoningEfforts: ["none", "low", "medium", "high", "xhigh", "max"],
+            defaultReasoningEffort: "medium"
+        });
+    });
+
+    it("preserves capability enrichment through the remote model merge", async () => {
+        fetchMock.mockResolvedValue(okJson({ data: [{ id: "gpt-5.6-luna" }] }));
+        const models = await new OpenAiProvider("sk-test").listModels();
+
+        expect(models).toHaveLength(1);
+        expect(models[0]).toMatchObject({
+            id: "gpt-5.6-luna",
+            contextWindow: 1_050_000,
+            supportedReasoningEfforts: ["none", "low", "medium", "high", "xhigh", "max"],
+            defaultReasoningEffort: "medium"
+        });
+    });
 
     it("filters non-chat models, drops dated snapshots, and names unknown models", async () => {
         fetchMock.mockResolvedValue(okJson({ data: [

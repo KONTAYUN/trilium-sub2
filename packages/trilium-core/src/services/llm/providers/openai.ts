@@ -8,6 +8,7 @@ import type { ToolSet } from "ai";
 import type { LlmProviderConfig, ModelInfo } from "../types.js";
 import { BaseProvider, type RemoteModel } from "./base_provider.js";
 import { llmFetch } from "./fetch.js";
+import { enrichOpenAiModels, getOpenAiModelCapabilities } from "./openai_model_capabilities.js";
 
 const OFFICIAL_BASE_URL = "https://api.openai.com/v1";
 
@@ -41,10 +42,16 @@ export class OpenAiProvider extends BaseProvider {
      * AI SDK 4.0.42 automatically requests encrypted reasoning for recognized
      * reasoning models when store is false, then replays it on later agent steps.
      */
-    protected override buildProviderOptions(_config?: LlmProviderConfig) {
+    protected override buildProviderOptions(config?: LlmProviderConfig) {
         const options: OpenAILanguageModelResponsesOptions = {};
         if (this.statelessResponses) {
             options.store = false;
+        }
+
+        const modelId = config?.model ?? this.defaultModel;
+        const capabilities = getOpenAiModelCapabilities(modelId);
+        if (config?.reasoningEffort && capabilities?.supportedReasoningEfforts.includes(config.reasoningEffort)) {
+            options.reasoningEffort = config.reasoningEffort;
         }
 
         if (Object.keys(options).length === 0) {
@@ -54,6 +61,10 @@ export class OpenAiProvider extends BaseProvider {
         return {
             openai: options
         };
+    }
+
+    override getAvailableModels(): ModelInfo[] {
+        return enrichOpenAiModels(super.getAvailableModels());
     }
 
     /**

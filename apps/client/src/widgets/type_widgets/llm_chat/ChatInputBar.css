@@ -224,6 +224,10 @@
     --icon-button-hover-color: var(--link-color);
 }
 
+.llm-chat-reasoning-effort-menu {
+    min-width: 9rem;
+}
+
 /*
  * The actions. A fixed gap rather than relying on the capability group's `auto` margin,
  * which resolves to zero the moment the row is full — the normal state in the sidebar,
