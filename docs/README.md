@@ -1,3 +1,24 @@
+# Trilium Sub2
+
+> [!IMPORTANT]
+> This is an unofficial modification of [TriliumNext/Trilium](https://github.com/TriliumNext/Trilium). It is not an official TriliumNext release.
+>
+> 本项目为 TriliumNext 的非官方修改版，主要增强 Sub2API / OpenAI Responses 无状态调用兼容性。
+
+This fork adds:
+
+- Stateless OpenAI Responses support for Sub2API / OAuth-compatible scenarios
+- OpenAI reasoning effort selector
+- Encrypted reasoning continuity in Stateless Responses mode
+- Trilium native Note Tools remain available
+- OpenAI native Web Search remains available
+
+**Upstream:** [TriliumNext/Trilium](https://github.com/TriliumNext/Trilium)
+
+**License:** AGPL-3.0
+
+---
+
 # Trilium Notes
 
 ![GitHub Sponsors](https://img.shields.io/github/sponsors/eliandoran) ![LiberaPay patrons](https://img.shields.io/liberapay/patrons/ElianDoran)  
