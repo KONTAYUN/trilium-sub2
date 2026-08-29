@@ -78,6 +78,7 @@ const providerCard = (name: string) =>
     [ ...document.querySelectorAll<HTMLElement>(".selectable-card") ]
         .find((card) => card.textContent?.includes(name));
 const textBoxes = () => [ ...document.querySelectorAll<HTMLInputElement>(".wizard-step input[type='text'], .wizard-step input[type='password']") ];
+const statelessToggle = () => document.querySelector<HTMLInputElement>(".wizard-step input[type='checkbox']");
 
 /** Types into one of the connection fields, as a keystroke rather than an assignment. */
 function type(box: HTMLInputElement | undefined, value: string) {
@@ -146,6 +147,21 @@ describe("the connection step", () => {
         expect(providerCard("OpenAI")).toBeUndefined();
         expect(textBoxes()[0]?.value).toBe("sk-old");
     });
+
+    it("shows the stateless Responses toggle only for OpenAI and defaults it off", () => {
+        open();
+        act(() => providerCard("OpenAI")?.click());
+        expect(statelessToggle()?.checked).toBe(false);
+
+        open({
+            id: "compatible_1",
+            name: "Compatible",
+            provider: "openai-compatible",
+            apiKey: "",
+            baseURL: "https://proxy.example/v1"
+        });
+        expect(statelessToggle()).toBeNull();
+    });
 });
 
 describe("what gets saved", () => {
@@ -157,6 +173,7 @@ describe("what gets saved", () => {
 
         const [ saved ] = mocks.onSave.mock.calls[0] as [ LlmProviderConfig ];
         expect(saved).toMatchObject({ provider: "openai", name: "OpenAI", apiKey: "sk-abc" });
+        expect(saved.statelessResponses).toBe(false);
         // Left out entirely rather than stored empty, so the provider's own default stands.
         expect(saved).not.toHaveProperty("baseURL");
     });
@@ -190,6 +207,26 @@ describe("what gets saved", () => {
         expect(saved.apiKey).toBe("sk-new");
         // The stored selection is carried through rather than reset by reopening the editor.
         expect(saved.selectedModels).toEqual(existing.selectedModels);
+    });
+
+    it("persists the stateless Responses toggle in both directions", () => {
+        open();
+        act(() => providerCard("OpenAI")?.click());
+        type(textBoxes()[0], "sk-abc");
+        act(() => void statelessToggle()?.click());
+        expect(statelessToggle()?.checked).toBe(true);
+        finish();
+
+        const [ enabled ] = mocks.onSave.mock.calls[0] as [ LlmProviderConfig ];
+        expect(enabled.statelessResponses).toBe(true);
+
+        open(enabled);
+        expect(statelessToggle()?.checked).toBe(true);
+        act(() => void statelessToggle()?.click());
+        finish();
+
+        const [ disabled ] = mocks.onSave.mock.calls[1] as [ LlmProviderConfig ];
+        expect(disabled.statelessResponses).toBe(false);
     });
 
     it("puts the dialog away once it has saved", () => {

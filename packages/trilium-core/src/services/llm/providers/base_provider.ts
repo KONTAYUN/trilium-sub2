@@ -371,6 +371,15 @@ export abstract class BaseProvider implements LlmProvider {
     }
 
     /**
+     * Provider-specific options shared by streaming chat and title generation.
+     * The default deliberately omits the option entirely, preserving each SDK
+     * provider's upstream defaults.
+     */
+    protected buildProviderOptions(_config?: LlmProviderConfig): Parameters<typeof streamText>[0]["providerOptions"] {
+        return undefined;
+    }
+
+    /**
      * Add provider-specific web search tool. Override in subclasses that support it.
      */
     protected addWebSearchTool(_tools: ToolSet): void {}
@@ -398,12 +407,14 @@ export abstract class BaseProvider implements LlmProvider {
         const systemPrompt = this.buildSystemPrompt(messages, config);
         const chatMessages = this.applyNoteHint(messages.filter(m => m.role !== "system"), config);
         const coreMessages = this.buildMessages(chatMessages);
+        const providerOptions = this.buildProviderOptions(config);
 
         const streamOptions: Parameters<typeof streamText>[0] = {
             model: this.createModel(config.model || this.defaultModel),
             system: this.buildSystemMessage(systemPrompt),
             messages: coreMessages,
             maxOutputTokens: config.maxTokens || DEFAULT_MAX_TOKENS,
+            ...(providerOptions && { providerOptions }),
             // Reject any system message smuggled into `messages` (prompt injection guard).
             allowSystemInMessages: false,
             // The AI SDK's default onError handler dumps the raw error object straight
@@ -520,10 +531,12 @@ export abstract class BaseProvider implements LlmProvider {
 
     /** One title call, with whatever the caller is willing to spend on it. */
     private async requestTitle(firstMessage: string, maxOutputTokens: number) {
+        const providerOptions = this.buildProviderOptions();
         const { text, finishReason, usage } = await generateText({
             model: this.createModel(this.titleModel),
             maxOutputTokens,
             telemetry: TELEMETRY_OFF,
+            ...(providerOptions && { providerOptions }),
             messages: [
                 {
                     role: "user",

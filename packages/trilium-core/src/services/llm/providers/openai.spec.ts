@@ -13,13 +13,14 @@ vi.mock("@ai-sdk/openai", () => ({
     }
 }));
 
-const { streamTextMock } = vi.hoisted(() => ({
+const { generateTextMock, streamTextMock } = vi.hoisted(() => ({
+    generateTextMock: vi.fn(async (..._args: any[]) => ({ text: "Generated Title", finishReason: "stop", usage: {} }) as any),
     streamTextMock: vi.fn((..._args: any[]) => ({}) as any)
 }));
 
 vi.mock("ai", async (importOriginal) => {
     const actual = await importOriginal<typeof import("ai")>();
-    return { ...actual, streamText: streamTextMock };
+    return { ...actual, generateText: generateTextMock, streamText: streamTextMock };
 });
 
 import { isOpenAiChatModel, openAiModelName, OpenAiProvider } from "./openai.js";
@@ -63,6 +64,7 @@ describe("OpenAiProvider construction", () => {
 describe("OpenAiProvider chat", () => {
     beforeEach(() => {
         streamTextMock.mockClear();
+        generateTextMock.mockClear();
         webSearchMock.mockClear();
         modelMock.mockClear();
     });
@@ -86,6 +88,28 @@ describe("OpenAiProvider chat", () => {
         // Tools present → agentic loop options are set.
         expect(opts.toolChoice).toBe("auto");
         expect(opts.stopWhen).toBeDefined();
+    });
+
+    it("keeps the default stored Responses behavior when stateless mode is disabled", async () => {
+        const provider = new OpenAiProvider("sk-test");
+        provider.chat([{ role: "user", content: "hi" }], {});
+        await provider.generateTitle("hi");
+
+        expect(streamTextMock.mock.calls[0][0]).not.toHaveProperty("providerOptions");
+        expect(generateTextMock.mock.calls[0][0]).not.toHaveProperty("providerOptions");
+    });
+
+    it("sets store=false for streaming chat and title generation without replacing web_search", async () => {
+        const provider = new OpenAiProvider("sk-test", "https://sub2api.example/v1", true);
+        provider.chat([{ role: "user", content: "hi" }], { enableWebSearch: true });
+        await provider.generateTitle("hi");
+
+        const streamOptions = streamTextMock.mock.calls[0][0] as any;
+        expect(streamOptions.providerOptions).toEqual({ openai: { store: false } });
+        expect(streamOptions.tools.web_search).toEqual({ kind: "web_search" });
+        expect(streamOptions.stopWhen).toBeDefined();
+        expect((generateTextMock.mock.calls[0][0] as any).providerOptions)
+            .toEqual({ openai: { store: false } });
     });
 });
 

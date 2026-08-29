@@ -19,6 +19,8 @@ export interface LlmProviderSetup {
     apiKey: string;
     /** Optional override for the SDK's default API endpoint (e.g. for self-hosted Ollama, vLLM, or proxies). */
     baseURL?: string;
+    /** Use OpenAI Responses without server-side item persistence (for OAuth-backed proxies). OpenAI only. */
+    statelessResponses?: boolean;
     /**
      * Models the user selected for this provider, with full metadata denormalized
      * so the chat picker renders them without a live fetch. Absent in configs
@@ -101,12 +103,17 @@ function createHostProvider(type: HostProvidedType): LlmProvider {
  * spelled out in their branch below — the untrusted string picks the branch and
  * goes no further.
  */
-function createProviderInstance(provider: string, apiKey: string, baseURL?: string): LlmProvider {
+function createProviderInstance(
+    provider: string,
+    apiKey: string,
+    baseURL?: string,
+    statelessResponses = false
+): LlmProvider {
     switch (provider) {
         case "anthropic":
             return new AnthropicProvider(apiKey, baseURL);
         case "openai":
-            return new OpenAiProvider(apiKey, baseURL);
+            return new OpenAiProvider(apiKey, baseURL, statelessResponses);
         case "google":
             return new GoogleProvider(apiKey, baseURL);
         // OpenAI-compatible on the wire, but carded separately from the generic
@@ -188,7 +195,7 @@ export function getProvider(providerId?: string): LlmProvider {
     }
 
     // Create new provider instance
-    const provider = createProviderInstance(config.provider, config.apiKey, config.baseURL);
+    const provider = createProviderInstance(config.provider, config.apiKey, config.baseURL, config.statelessResponses);
     cachedProviders[config.id] = provider;
     return provider;
 }

@@ -10,6 +10,7 @@ import { isStandalone } from "../../../../services/utils";
 import { Badge } from "../../../react/Badge";
 import { Card, CardSection } from "../../../react/Card";
 import FormTextBox from "../../../react/FormTextBox";
+import FormToggle from "../../../react/FormToggle";
 import MaskedIcon from "../../../react/MaskedIcon";
 import SelectableCard, { SelectableCardGrid } from "../../../react/SelectableCard";
 import WizardModal, { type WizardStep } from "../../../react/WizardModal";
@@ -23,6 +24,8 @@ export interface LlmProviderConfig {
     provider: string;
     apiKey: string;
     baseURL?: string;
+    /** Send OpenAI Responses with store=false instead of relying on persisted response items. */
+    statelessResponses?: boolean;
     /** Models the user selected for this provider, with full metadata for offline rendering. */
     selectedModels?: LlmModelInfo[];
 }
@@ -215,6 +218,7 @@ export default function AddProviderModal({ show, onHidden, onSave, existingProvi
     const [providerChosen, setProviderChosen] = useState(firstStep !== "provider");
     const [apiKey, setApiKey] = useState(existingProvider?.apiKey ?? "");
     const [baseUrl, setBaseUrl] = useState(existingProvider?.baseURL ?? prefilledBaseUrl(existingProvider?.provider ?? PROVIDER_TYPES[0].id));
+    const [statelessResponses, setStatelessResponses] = useState(existingProvider?.statelessResponses ?? false);
     const [selectedModels, setSelectedModels] = useState<LlmModelInfo[]>(existingProvider?.selectedModels ?? []);
 
     const providerType = useMemo(
@@ -287,6 +291,7 @@ export default function AddProviderModal({ show, onHidden, onSave, existingProvi
         setProviderChosen(firstStep !== "provider");
         setApiKey(existingProvider?.apiKey ?? "");
         setBaseUrl(existingProvider?.baseURL ?? prefilledBaseUrl(initialProvider));
+        setStatelessResponses(existingProvider?.statelessResponses ?? false);
         setSelectedModels(existingProvider?.selectedModels ?? []);
     }
 
@@ -302,6 +307,7 @@ export default function AddProviderModal({ show, onHidden, onSave, existingProvi
             provider: selectedProvider,
             apiKey: usesApiKey ? trimmedApiKey : "",
             ...(baseUrlMode !== "none" && trimmedBaseUrl && { baseURL: trimmedBaseUrl }),
+            ...(selectedProvider === "openai" && { statelessResponses }),
             selectedModels
         };
 
@@ -375,6 +381,15 @@ export default function AddProviderModal({ show, onHidden, onSave, existingProvi
                                 </OptionsRow>
                             )}
                             {baseUrlMode === "advanced" && baseUrlField}
+                            {selectedProvider === "openai" && (
+                                <OptionsRow
+                                    name="stateless-responses"
+                                    label={t("llm.stateless_responses")}
+                                    description={t("llm.stateless_responses_description")}
+                                >
+                                    <FormToggle currentValue={statelessResponses} onChange={setStatelessResponses} />
+                                </OptionsRow>
+                            )}
                             {!usesApiKey && baseUrlMode === "none" && (
                                 <p>{providerType?.connectionDescription}</p>
                             )}

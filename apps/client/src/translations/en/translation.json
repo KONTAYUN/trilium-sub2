@@ -3798,6 +3798,8 @@
     "base_url": "Base URL",
     "base_url_description": "Optional. Reaches the same API through a proxy or gateway. To run a model yourself, add an Ollama or LM Studio provider instead.",
     "base_url_invalid": "Base URL must be a valid http:// or https:// URL",
+    "stateless_responses": "Stateless Responses",
+    "stateless_responses_description": "Send store=false with OpenAI Responses. Enable this for OAuth-backed proxies such as Sub2API that do not persist response items; leave it off for the standard OpenAI API.",
     "claude_agent_description": "Uses your Claude Pro/Max subscription through Claude Code, so no API key is needed. Claude Code must be installed on the machine running Trilium (the server when self-hosting, or this computer on desktop); sign in once by running \"claude /login\" there.",
     "copilot_agent_description": "Uses your GitHub Copilot subscription through the GitHub Copilot CLI, so no API key is needed. The Copilot CLI must be installed on the machine running Trilium (the server when self-hosting, or this computer on desktop); sign in once by running \"copilot login\" there — an existing Copilot login from another editor is reused automatically.",
     "add_provider_title_named": "Add {{- name}}",

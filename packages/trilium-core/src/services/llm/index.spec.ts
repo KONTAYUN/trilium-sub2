@@ -102,13 +102,13 @@ describe("llm/index provider registry", () => {
         it("returns the provider matching a given id", () => {
             setProviders(TWO);
             const p = getProvider("o1");
-            expect((p.constructor as any).lastArgs).toEqual(["k2", undefined]);
+            expect((p.constructor as any).lastArgs).toEqual(["k2", undefined, false]);
         });
 
         it("instantiates each known provider type via its factory", () => {
             setProviders([
                 { id: "a", name: "A", provider: "anthropic", apiKey: "ka" },
-                { id: "o", name: "O", provider: "openai", apiKey: "ko" },
+                { id: "o", name: "O", provider: "openai", apiKey: "ko", statelessResponses: true },
                 { id: "g", name: "G", provider: "google", apiKey: "kg" },
                 { id: "d", name: "D", provider: "deepseek", apiKey: "kd" },
                 { id: "c", name: "C", provider: "claude-agent", apiKey: "" },
@@ -117,7 +117,7 @@ describe("llm/index provider registry", () => {
                 { id: "oc", name: "OC", provider: "openai-compatible", apiKey: "k", baseURL: "http://box:8080/v1" }
             ]);
             expect((getProvider("a").constructor as any).lastArgs).toEqual(["ka", undefined]);
-            expect((getProvider("o").constructor as any).lastArgs).toEqual(["ko", undefined]);
+            expect((getProvider("o").constructor as any).lastArgs).toEqual(["ko", undefined, true]);
             expect((getProvider("g").constructor as any).lastArgs).toEqual(["kg", undefined]);
             // Its own class rather than the shared self-hosted one, despite speaking
             // the same protocol — that is what gives its models a price.
@@ -205,7 +205,7 @@ describe("llm/index provider registry", () => {
         it("returns the first provider of the given type", () => {
             setProviders(TWO);
             const p = getProviderByType("openai");
-            expect((p.constructor as any).lastArgs).toEqual(["k2", undefined]);
+            expect((p.constructor as any).lastArgs).toEqual(["k2", undefined, false]);
         });
 
         it("throws when no provider of that type is configured", () => {

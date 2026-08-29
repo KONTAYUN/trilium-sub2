@@ -1,7 +1,11 @@
-import { createOpenAI, type OpenAIProvider as OpenAISDKProvider } from "@ai-sdk/openai";
+import {
+    createOpenAI,
+    type OpenAILanguageModelResponsesOptions,
+    type OpenAIProvider as OpenAISDKProvider
+} from "@ai-sdk/openai";
 import type { ToolSet } from "ai";
 
-import type { ModelInfo } from "../types.js";
+import type { LlmProviderConfig, ModelInfo } from "../types.js";
 import { BaseProvider, type RemoteModel } from "./base_provider.js";
 import { llmFetch } from "./fetch.js";
 
@@ -11,6 +15,7 @@ export class OpenAiProvider extends BaseProvider {
     name = "openai";
     protected defaultModel = "gpt-4.1";
     protected titleModel = "gpt-4.1-mini";
+    private readonly statelessResponses: boolean;
 
     /** The `/models` endpoint returns no display names, so derive friendly ones. */
     protected override modelName(id: string): string {
@@ -19,16 +24,36 @@ export class OpenAiProvider extends BaseProvider {
 
     private openai: OpenAISDKProvider;
 
-    constructor(apiKey: string, baseURL?: string) {
+    constructor(apiKey: string, baseURL?: string, statelessResponses = false) {
         super(apiKey, baseURL);
         if (!apiKey) {
             throw new Error("API key is required for OpenAI provider");
         }
+        this.statelessResponses = statelessResponses;
         this.openai = createOpenAI({ apiKey, ...(baseURL && { baseURL }), fetch: llmFetch });
     }
 
     protected createModel(modelId: string) {
         return this.openai(modelId);
+    }
+
+    /**
+     * AI SDK 4.0.42 automatically requests encrypted reasoning for recognized
+     * reasoning models when store is false, then replays it on later agent steps.
+     */
+    protected override buildProviderOptions(_config?: LlmProviderConfig) {
+        const options: OpenAILanguageModelResponsesOptions = {};
+        if (this.statelessResponses) {
+            options.store = false;
+        }
+
+        if (Object.keys(options).length === 0) {
+            return undefined;
+        }
+
+        return {
+            openai: options
+        };
     }
 
     /**

@@ -3014,6 +3014,8 @@
     "base_url": "基础 URL",
     "base_url_description": "可选。通过代理或网关访问同一 API。要自行运行模型，请改为添加 Ollama 或 LM Studio 提供商。",
     "base_url_invalid": "基础 URL 必须以 http:// 或 https:// 开头",
+    "stateless_responses": "无状态 Responses 模式",
+    "stateless_responses_description": "让 OpenAI Responses 请求使用 store=false。适用于 OAuth / Sub2API 等不保存响应项目的中转服务；使用标准 OpenAI API 时请保持关闭。",
     "edit_provider_title": "编辑 {{- name}}",
     "edit_provider": "编辑",
     "save": "保存",

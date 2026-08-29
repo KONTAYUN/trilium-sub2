@@ -2483,6 +2483,8 @@
     "delete_provider_confirmation": "您確定要刪除提供者 \"{{name}}\" 嗎？",
     "api_key": "API 金鑰",
     "api_key_placeholder": "請輸入您的 API 金鑰",
+    "stateless_responses": "無狀態 Responses 模式",
+    "stateless_responses_description": "讓 OpenAI Responses 請求使用 store=false。適用於 OAuth / Sub2API 等不保存回應項目的中轉服務；使用標準 OpenAI API 時請保持關閉。",
     "mcp_title": "MCP（模型上下文協定）",
     "mcp_enabled": "MCP 伺服器",
     "mcp_enabled_description": "公開一個模型上下文協定 (MCP) 端點，以便人工智慧編程助手（例如 Claude Code、GitHub Copilot）能夠讀取並修改您的筆記。此端點僅限從 localhost 存取。",
