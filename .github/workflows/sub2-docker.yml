@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - "v*-sub2.*"
+  workflow_call:
+    inputs:
+      release_tag:
+        description: Sub2 release tag to build
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -12,6 +18,7 @@ permissions:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: kontayun/trilium-sub2
+  RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
 
 jobs:
   build-and-push:
@@ -19,8 +26,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Validate release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "${RELEASE_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-sub2\.[0-9]+$ ]]; then
+            echo "::error::Invalid Sub2 release tag: ${RELEASE_TAG}"
+            exit 1
+          fi
+
       - name: Checkout repository
         uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v6
@@ -58,5 +76,5 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.RELEASE_TAG }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest

@@ -1,0 +1,252 @@
+name: Sync Upstream Stable Release
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: sync-upstream-stable
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  sync:
+    name: Merge and verify latest upstream stable release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      updated: ${{ steps.sync.outputs.updated }}
+      release_tag: ${{ steps.sync.outputs.release_tag }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      UPSTREAM_REPOSITORY: TriliumNext/Trilium
+      UPSTREAM_URL: https://github.com/TriliumNext/Trilium.git
+
+    steps:
+      - name: Checkout main with full history
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Configure Git and upstream
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git remote get-url upstream >/dev/null 2>&1; then
+            git remote set-url upstream "${UPSTREAM_URL}"
+          else
+            git remote add upstream "${UPSTREAM_URL}"
+          fi
+
+      - name: Detect latest official stable release
+        id: latest
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_json="$(gh api "repos/${UPSTREAM_REPOSITORY}/releases/latest")"
+          official_tag="$(jq -r '.tag_name' <<<"${release_json}")"
+          draft="$(jq -r '.draft' <<<"${release_json}")"
+          prerelease="$(jq -r '.prerelease' <<<"${release_json}")"
+
+          if [[ "${draft}" != "false" || "${prerelease}" != "false" ]]; then
+            echo "::error::GitHub latest release is not a formal stable release."
+            exit 1
+          fi
+
+          if [[ ! "${official_tag}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Unexpected official release tag: ${official_tag}"
+            exit 1
+          fi
+
+          echo "tag=${official_tag}" >> "${GITHUB_OUTPUT}"
+          echo "Latest official stable release: ${official_tag}"
+
+      - name: Fetch upstream history and tags
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --prune upstream --tags
+
+      - name: Plan and merge upstream release
+        id: sync
+        shell: bash
+        env:
+          OFFICIAL_TAG: ${{ steps.latest.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          if ! git rev-parse --verify "${OFFICIAL_TAG}^{commit}" >/dev/null; then
+            echo "::error::Official release tag was not fetched: ${OFFICIAL_TAG}"
+            exit 1
+          fi
+
+          current_baseline="$(
+            git tag --merged HEAD --list "v*" |
+              grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' |
+              sort -V |
+              tail -n 1 || true
+          )"
+
+          if [[ -z "${current_baseline}" ]]; then
+            echo "::error::Unable to identify a stable upstream baseline in main history."
+            exit 1
+          fi
+
+          base_sha="$(git rev-parse HEAD)"
+          echo "Current upstream baseline: ${current_baseline}"
+
+          set +e
+          git merge-base --is-ancestor "${OFFICIAL_TAG}^{commit}" HEAD
+          ancestor_status=$?
+          set -e
+
+          if [[ ${ancestor_status} -eq 0 ]]; then
+            {
+              echo "updated=false"
+              echo "release_tag="
+              echo "base_sha=${base_sha}"
+            } >> "${GITHUB_OUTPUT}"
+            echo "${OFFICIAL_TAG} is already present in main history; nothing to update."
+            exit 0
+          elif [[ ${ancestor_status} -ne 1 ]]; then
+            echo "::error::Unable to determine whether ${OFFICIAL_TAG} is already synchronized."
+            exit 1
+          fi
+
+          newest_tag="$(printf '%s\n%s\n' "${current_baseline}" "${OFFICIAL_TAG}" | sort -V | tail -n 1)"
+          if [[ "${newest_tag}" != "${OFFICIAL_TAG}" || "${current_baseline}" == "${OFFICIAL_TAG}" ]]; then
+            echo "::error::Official latest tag ${OFFICIAL_TAG} is not newer than baseline ${current_baseline}."
+            exit 1
+          fi
+
+          if ! git merge-base --is-ancestor "${current_baseline}^{commit}" "${OFFICIAL_TAG}^{commit}"; then
+            echo "::error::Official tag ${OFFICIAL_TAG} does not descend from baseline ${current_baseline}."
+            exit 1
+          fi
+
+          release_tag="${OFFICIAL_TAG}-sub2.1"
+          set +e
+          git ls-remote --exit-code --tags origin "refs/tags/${release_tag}" >/dev/null 2>&1
+          tag_status=$?
+          set -e
+
+          if [[ ${tag_status} -eq 0 ]]; then
+            echo "::error::Target release tag already exists: ${release_tag}"
+            exit 1
+          elif [[ ${tag_status} -ne 2 ]]; then
+            echo "::error::Unable to check target release tag: ${release_tag}"
+            exit 1
+          fi
+
+          if ! git merge --no-ff -m "chore: merge upstream ${OFFICIAL_TAG}" "${OFFICIAL_TAG}^{commit}"; then
+            git merge --abort || true
+            echo "::error::Git conflict while merging ${OFFICIAL_TAG}; no conflict was resolved automatically."
+            exit 1
+          fi
+
+          {
+            echo "updated=true"
+            echo "release_tag=${release_tag}"
+            echo "base_sha=${base_sha}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Set up pnpm
+        if: steps.sync.outputs.updated == 'true'
+        uses: pnpm/action-setup@v6
+
+      - name: Set up Node.js
+        if: steps.sync.outputs.updated == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        if: steps.sync.outputs.updated == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        if: steps.sync.outputs.updated == 'true'
+        run: pnpm typecheck
+
+      - name: Run OpenAI, chat, and reasoning tests
+        if: steps.sync.outputs.updated == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --filter client exec vitest run \
+            src/services/llm_chat.spec.ts \
+            src/services/llm_chat_standalone.spec.ts \
+            src/widgets/type_widgets/options/llm/AddProviderModal.wizard.spec.tsx \
+            src/widgets/type_widgets/llm_chat/llm_chat_types.spec.ts \
+            src/widgets/type_widgets/llm_chat/reasoning_control.spec.ts \
+            src/widgets/type_widgets/llm_chat/useLlmChat.spec.tsx
+
+          pnpm --filter server exec vitest run \
+            src/routes/api/llm_chat.spec.ts \
+            ../../packages/trilium-core/src/services/llm/index.spec.ts \
+            ../../packages/trilium-core/src/services/llm/chat.spec.ts \
+            ../../packages/trilium-core/src/services/llm/chat_title.spec.ts \
+            ../../packages/trilium-core/src/services/llm/providers/openai.spec.ts \
+            ../../packages/trilium-core/src/services/llm/providers/openai_model_capabilities.spec.ts
+
+      - name: Build server
+        if: steps.sync.outputs.updated == 'true'
+        run: pnpm run server:build
+
+      - name: Push main and release tag atomically
+        if: steps.sync.outputs.updated == 'true'
+        shell: bash
+        env:
+          BASE_SHA: ${{ steps.sync.outputs.base_sha }}
+          RELEASE_TAG: ${{ steps.sync.outputs.release_tag }}
+        run: |
+          set -euo pipefail
+
+          if [[ -n "$(git status --porcelain)" ]]; then
+            echo "::error::Validation left tracked or untracked files in the worktree; refusing to publish."
+            git status --short
+            exit 1
+          fi
+
+          git fetch --no-tags origin refs/heads/main:refs/remotes/origin/main
+          if [[ "$(git rev-parse refs/remotes/origin/main)" != "${BASE_SHA}" ]]; then
+            echo "::error::origin/main changed while validation was running; refusing to overwrite it."
+            exit 1
+          fi
+
+          set +e
+          git ls-remote --exit-code --tags origin "refs/tags/${RELEASE_TAG}" >/dev/null 2>&1
+          tag_status=$?
+          set -e
+
+          if [[ ${tag_status} -eq 0 ]]; then
+            echo "::error::Target release tag already exists: ${RELEASE_TAG}"
+            exit 1
+          elif [[ ${tag_status} -ne 2 ]]; then
+            echo "::error::Unable to recheck target release tag: ${RELEASE_TAG}"
+            exit 1
+          fi
+
+          git tag -a "${RELEASE_TAG}" -m "Trilium Sub2 ${RELEASE_TAG}"
+          git push --atomic origin \
+            HEAD:refs/heads/main \
+            "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
+
+  docker:
+    name: Build release Docker image
+    needs: sync
+    if: needs.sync.result == 'success' && needs.sync.outputs.updated == 'true'
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/sub2-docker.yml
+    with:
+      release_tag: ${{ needs.sync.outputs.release_tag }}
