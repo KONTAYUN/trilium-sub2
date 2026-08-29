@@ -129,4 +129,13 @@ export interface LlmProvider {
      * Used for auto-renaming chat notes. Should use a fast, cheap model.
      */
     generateTitle(firstMessage: string): Promise<string>;
+
+    /**
+     * Opt into generating titles with the current chat provider/model instead of
+     * Trilium's upstream first-provider/default-title-model path.
+     */
+    useCurrentModelForTitle?: boolean;
+
+    /** Generate a title with the current chat model when the opt-in above is set. */
+    generateTitleForCurrentModel?(firstMessage: string, modelId: string): Promise<string>;
 }

@@ -92,17 +92,21 @@ describe("OpenAiProvider chat", () => {
 
     it("keeps the default stored Responses behavior when stateless mode is disabled", async () => {
         const provider = new OpenAiProvider("sk-test");
+        expect(provider.useCurrentModelForTitle).toBe(false);
         provider.chat([{ role: "user", content: "hi" }], {});
         await provider.generateTitle("hi");
 
         expect(streamTextMock.mock.calls[0][0]).not.toHaveProperty("providerOptions");
         expect(generateTextMock.mock.calls[0][0]).not.toHaveProperty("providerOptions");
+        expect(modelMock.mock.calls.map(call => call[0])).toEqual(["gpt-4.1", "gpt-4.1-mini"]);
+        expect(generateTextMock).toHaveBeenCalledOnce();
     });
 
     it("sets store=false for streaming chat and title generation without replacing web_search", async () => {
         const provider = new OpenAiProvider("sk-test", "https://sub2api.example/v1", true);
+        expect(provider.useCurrentModelForTitle).toBe(true);
         provider.chat([{ role: "user", content: "hi" }], { enableWebSearch: true });
-        await provider.generateTitle("hi");
+        await provider.generateTitleForCurrentModel("hi", "gpt-5.6-luna");
 
         const streamOptions = streamTextMock.mock.calls[0][0] as any;
         expect(streamOptions.providerOptions).toEqual({ openai: { store: false } });
@@ -112,16 +116,21 @@ describe("OpenAiProvider chat", () => {
             .toEqual({ openai: { store: false } });
     });
 
-    it("merges a supported reasoning effort with stateless mode", () => {
+    it("merges a supported reasoning effort with stateless mode and leaves titles at the model default", async () => {
         const provider = new OpenAiProvider("sk-test", "https://sub2api.example/v1", true);
         provider.chat([{ role: "user", content: "hi" }], {
             model: "gpt-5.6-luna",
             reasoningEffort: "max"
         });
+        await provider.generateTitleForCurrentModel("hi", "gpt-5.6-luna");
 
         expect(streamTextMock.mock.calls[0][0]).toMatchObject({
             providerOptions: { openai: { store: false, reasoningEffort: "max" } }
         });
+        expect(generateTextMock.mock.calls[0][0]).toMatchObject({
+            providerOptions: { openai: { store: false } }
+        });
+        expect(modelMock.mock.calls.map(call => call[0])).toEqual(["gpt-5.6-luna", "gpt-5.6-luna"]);
     });
 
     it("sends reasoning effort independently of stateless mode", () => {

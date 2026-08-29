@@ -11,22 +11,27 @@ const state = vi.hoisted(() => ({
     chunkSignal: undefined as AbortSignal | undefined,
     /** Records how runChat resolved the provider. */
     providerIdRequested: undefined as string | undefined,
-    providerTypeRequested: undefined as string | undefined
+    providerTypeRequested: undefined as string | undefined,
+    resolvedProvider: undefined as unknown
 }));
 
 vi.mock("./index.js", () => {
-    const makeProvider = () => ({
-        name: "fake",
-        chat: () => { if (state.chatThrows !== undefined) throw state.chatThrows; return {}; },
-        chatChunks: state.chunkNative
-            ? async function* (_messages: unknown, _config: unknown, signal?: AbortSignal) {
-                state.chunkSignal = signal;
-                for (const c of state.chunks) yield c;
-            }
-            : undefined,
-        getAvailableModels: () => state.availableModels,
-        getModelPricing: () => ({ input: 0, output: 0 })
-    });
+    const makeProvider = () => {
+        const provider = {
+            name: "fake",
+            chat: () => { if (state.chatThrows !== undefined) throw state.chatThrows; return {}; },
+            chatChunks: state.chunkNative
+                ? async function* (_messages: unknown, _config: unknown, signal?: AbortSignal) {
+                    state.chunkSignal = signal;
+                    for (const c of state.chunks) yield c;
+                }
+                : undefined,
+            getAvailableModels: () => state.availableModels,
+            getModelPricing: () => ({ input: 0, output: 0 })
+        };
+        state.resolvedProvider = provider;
+        return provider;
+    };
     return {
         hasConfiguredProviders: () => state.configured,
         getSelectedModel: () => undefined,
@@ -74,7 +79,8 @@ describe("runChat", () => {
             chunkNative: false,
             chunkSignal: undefined,
             providerIdRequested: undefined,
-            providerTypeRequested: undefined
+            providerTypeRequested: undefined,
+            resolvedProvider: undefined
         });
         generateChatTitle.mockClear();
         errorMock.mockClear();
@@ -152,14 +158,14 @@ describe("runChat", () => {
     describe("title generation", () => {
         it("titles the note from the opening message, including the text parts of a multimodal one", async () => {
             await collect([{ role: "user", content: "hello" }], { chatNoteId: "abc" });
-            expect(generateChatTitle).toHaveBeenCalledWith("abc", "hello");
+            expect(generateChatTitle).toHaveBeenCalledWith("abc", "hello", state.resolvedProvider, "m1");
 
             generateChatTitle.mockClear();
             await collect([{ role: "user", content: [
                 { type: "image", attachmentId: "a1", mime: "image/png" },
                 { type: "text", text: "describe this" }
             ] }], { chatNoteId: "abc" });
-            expect(generateChatTitle).toHaveBeenCalledWith("abc", "describe this");
+            expect(generateChatTitle).toHaveBeenCalledWith("abc", "describe this", state.resolvedProvider, "m1");
         });
 
         it("skips an image-only opening message, a follow-up turn, and a chat with no note", async () => {

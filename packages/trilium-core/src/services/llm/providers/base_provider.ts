@@ -494,8 +494,13 @@ export abstract class BaseProvider implements LlmProvider {
      * for the thinking too; everything else is taken at its word.
      */
     async generateTitle(firstMessage: string): Promise<string> {
-        const budget = this.titleNeedsRoomToThink ? REASONING_TITLE_MAX_TOKENS : TITLE_MAX_TOKENS;
-        const attempt = await this.requestTitle(firstMessage, budget);
+        return this.generateTitleWithModel(firstMessage, this.titleModel);
+    }
+
+    /** Generate a title with an explicitly selected model for opt-in provider modes. */
+    protected async generateTitleWithModel(firstMessage: string, modelId: string): Promise<string> {
+        const budget = this.titleModelsNeedingRoomToThink.has(modelId) ? REASONING_TITLE_MAX_TOKENS : TITLE_MAX_TOKENS;
+        const attempt = await this.requestTitle(firstMessage, budget, modelId);
         if (attempt.title) {
             return attempt.title;
         }
@@ -505,16 +510,16 @@ export abstract class BaseProvider implements LlmProvider {
         const log = getLog();
         const cutOffThinking = attempt.finishReason === "length" && budget === TITLE_MAX_TOKENS;
         if (cutOffThinking) {
-            this.titleNeedsRoomToThink = true;
-            log.info(`${this.name} wrote no title within ${TITLE_MAX_TOKENS} tokens; retrying with ${REASONING_TITLE_MAX_TOKENS}.`);
+            this.titleModelsNeedingRoomToThink.add(modelId);
+            log.info(`${this.name} model ${modelId} wrote no title within ${TITLE_MAX_TOKENS} tokens; retrying with ${REASONING_TITLE_MAX_TOKENS}.`);
         }
         const result = cutOffThinking
-            ? await this.requestTitle(firstMessage, REASONING_TITLE_MAX_TOKENS)
+            ? await this.requestTitle(firstMessage, REASONING_TITLE_MAX_TOKENS, modelId)
             : attempt;
 
         if (!result.title) {
             const { outputTokens, outputTokenDetails } = result.usage;
-            log.info(`${this.name} produced no title with ${this.titleModel}: finished as `
+            log.info(`${this.name} produced no title with ${modelId}: finished as `
                 + `"${result.finishReason}" after ${outputTokens ?? "?"} output tokens, `
                 + `${outputTokenDetails?.reasoningTokens ?? 0} of them reasoning.`);
         }
@@ -527,13 +532,13 @@ export abstract class BaseProvider implements LlmProvider {
      * trip for an attempt that cannot finish. Kept on the instance, which is
      * cached for as long as the provider configuration stands.
      */
-    private titleNeedsRoomToThink = false;
+    private titleModelsNeedingRoomToThink = new Set<string>();
 
     /** One title call, with whatever the caller is willing to spend on it. */
-    private async requestTitle(firstMessage: string, maxOutputTokens: number) {
+    private async requestTitle(firstMessage: string, maxOutputTokens: number, modelId: string) {
         const providerOptions = this.buildProviderOptions();
         const { text, finishReason, usage } = await generateText({
-            model: this.createModel(this.titleModel),
+            model: this.createModel(modelId),
             maxOutputTokens,
             telemetry: TELEMETRY_OFF,
             ...(providerOptions && { providerOptions }),

@@ -16,6 +16,7 @@ export class OpenAiProvider extends BaseProvider {
     name = "openai";
     protected defaultModel = "gpt-4.1";
     protected titleModel = "gpt-4.1-mini";
+    readonly useCurrentModelForTitle: boolean;
     private readonly statelessResponses: boolean;
 
     /** The `/models` endpoint returns no display names, so derive friendly ones. */
@@ -31,6 +32,7 @@ export class OpenAiProvider extends BaseProvider {
             throw new Error("API key is required for OpenAI provider");
         }
         this.statelessResponses = statelessResponses;
+        this.useCurrentModelForTitle = statelessResponses;
         this.openai = createOpenAI({ apiKey, ...(baseURL && { baseURL }), fetch: llmFetch });
     }
 
@@ -61,6 +63,11 @@ export class OpenAiProvider extends BaseProvider {
         return {
             openai: options
         };
+    }
+
+    /** Stateless Responses titles must stay on the exact chat model and endpoint. */
+    async generateTitleForCurrentModel(firstMessage: string, modelId: string): Promise<string> {
+        return this.generateTitleWithModel(firstMessage, modelId);
     }
 
     override getAvailableModels(): ModelInfo[] {
