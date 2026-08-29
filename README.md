@@ -17,6 +17,17 @@ This fork adds:
 
 **License:** AGPL-3.0
 
+## Trilium Sub2 maintenance
+
+- Docker image: `ghcr.io/kontayun/trilium-sub2`
+- Images are currently built for `linux/amd64` only.
+- Release tags use `v<Trilium-version>-sub2.<revision>`, for example `v0.105.0-sub2.2`.
+- `latest` points only to the highest successfully published Sub2 version.
+- Every six hours, the maintenance workflow checks the latest formal TriliumNext stable release, merges it, runs the LLM/client checks and server build, then creates a Sub2 tag and Docker release. Conflicts, validation failures, or upstream workflow topology changes stop the process without publishing.
+- To recover from a transient GHCR, runner, or Docker failure, run the **Sub2 Docker Release** workflow for an existing Sub2 tag.
+
+Known limitation of Stateless Responses: native OpenAI Web Search works normally on the first turn and semantic context continues across turns. Due to the current Vercel AI SDK behavior for `store:false` hosted web-search replay, historical citation/source mapping can be degraded and some citations may not return as clickable references. This is an SDK limitation, not a Sub2 API failure.
+
 ---
 
 # Trilium Notes

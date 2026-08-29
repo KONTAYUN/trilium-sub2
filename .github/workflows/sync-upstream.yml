@@ -15,13 +15,13 @@ jobs:
   sync:
     name: Merge and verify latest upstream stable release
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: write
     outputs:
       updated: ${{ steps.sync.outputs.updated }}
       release_tag: ${{ steps.sync.outputs.release_tag }}
     env:
-      GH_TOKEN: ${{ github.token }}
       UPSTREAM_REPOSITORY: TriliumNext/Trilium
       UPSTREAM_URL: https://github.com/TriliumNext/Trilium.git
 
@@ -31,6 +31,7 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Configure Git and upstream
         shell: bash
@@ -48,6 +49,8 @@ jobs:
       - name: Detect latest official stable release
         id: latest
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           release_json="$(gh api "repos/${UPSTREAM_REPOSITORY}/releases/latest")"
@@ -79,6 +82,7 @@ jobs:
         shell: bash
         env:
           OFFICIAL_TAG: ${{ steps.latest.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
@@ -131,6 +135,23 @@ jobs:
             exit 1
           fi
 
+          auth_header="$(printf 'x-access-token:%s' "${GH_TOKEN}" | base64 | tr -d '\n')"
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0=http.extraheader
+          export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic ${auth_header}"
+
+          # A new workflow path can become active in this fork as soon as the merge is pushed.
+          # Existing workflow edits/deletions are safe to inherit; additions, copies and renames
+          # require a human review before this automation is allowed to publish anything.
+          workflow_diff="$(git diff --name-status --find-renames --find-copies \
+            "${current_baseline}^{commit}" "${OFFICIAL_TAG}^{commit}" -- .github/workflows/)"
+          blocked_workflows="$(awk '$1 ~ /^[ARC][0-9]*$/ { print }' <<<"${workflow_diff}")"
+          if [[ -n "${blocked_workflows}" ]]; then
+            echo "::error::Upstream adds, copies, or renames workflow paths; manual review is required."
+            printf '%s\n' "${blocked_workflows}"
+            exit 1
+          fi
+
           release_tag="${OFFICIAL_TAG}-sub2.1"
           set +e
           git ls-remote --exit-code --tags origin "refs/tags/${release_tag}" >/dev/null 2>&1
@@ -145,7 +166,7 @@ jobs:
             exit 1
           fi
 
-          if ! git merge --no-ff -m "chore: merge upstream ${OFFICIAL_TAG}" "${OFFICIAL_TAG}^{commit}"; then
+          if ! git merge --no-ff --no-edit -m "chore: merge upstream ${OFFICIAL_TAG}" "${OFFICIAL_TAG}^{commit}"; then
             git merge --abort || true
             echo "::error::Git conflict while merging ${OFFICIAL_TAG}; no conflict was resolved automatically."
             exit 1
@@ -176,30 +197,36 @@ jobs:
         if: steps.sync.outputs.updated == 'true'
         run: pnpm typecheck
 
-      - name: Run OpenAI, chat, and reasoning tests
+      - name: Run LLM and provider tests
         if: steps.sync.outputs.updated == 'true'
         shell: bash
         run: |
           set -euo pipefail
+          # Directory-level filters intentionally cover every current and future spec in these
+          # feature domains without maintaining a fragile per-file list.
           pnpm --filter client exec vitest run \
-            src/services/llm_chat.spec.ts \
-            src/services/llm_chat_standalone.spec.ts \
-            src/widgets/type_widgets/options/llm/AddProviderModal.wizard.spec.tsx \
-            src/widgets/type_widgets/llm_chat/llm_chat_types.spec.ts \
-            src/widgets/type_widgets/llm_chat/reasoning_control.spec.ts \
-            src/widgets/type_widgets/llm_chat/useLlmChat.spec.tsx
+            src/services/llm_chat \
+            src/widgets/type_widgets/llm_chat \
+            src/widgets/type_widgets/options/llm/AddProviderModal
 
           pnpm --filter server exec vitest run \
-            src/routes/api/llm_chat.spec.ts \
-            ../../packages/trilium-core/src/services/llm/index.spec.ts \
-            ../../packages/trilium-core/src/services/llm/chat.spec.ts \
-            ../../packages/trilium-core/src/services/llm/chat_title.spec.ts \
-            ../../packages/trilium-core/src/services/llm/providers/openai.spec.ts \
-            ../../packages/trilium-core/src/services/llm/providers/openai_model_capabilities.spec.ts
+            src/routes/api/llm_chat \
+            src/services/llm \
+            ../../packages/trilium-core/src/services/llm
 
       - name: Build server
         if: steps.sync.outputs.updated == 'true'
         run: pnpm run server:build
+
+      - name: Check diff whitespace
+        if: steps.sync.outputs.updated == 'true'
+        shell: bash
+        env:
+          BASE_SHA: ${{ steps.sync.outputs.base_sha }}
+        run: |
+          set -euo pipefail
+          git diff --check "${BASE_SHA}..HEAD"
+          git diff --check
 
       - name: Push main and release tag atomically
         if: steps.sync.outputs.updated == 'true'
@@ -207,6 +234,7 @@ jobs:
         env:
           BASE_SHA: ${{ steps.sync.outputs.base_sha }}
           RELEASE_TAG: ${{ steps.sync.outputs.release_tag }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
@@ -215,6 +243,13 @@ jobs:
             git status --short
             exit 1
           fi
+
+          # Keep the write token out of the checkout config and expose it only after
+          # all upstream-controlled install, test, and build steps have completed.
+          auth_header="$(printf 'x-access-token:%s' "${GH_TOKEN}" | base64 | tr -d '\n')"
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0=http.extraheader
+          export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic ${auth_header}"
 
           git fetch --no-tags origin refs/heads/main:refs/remotes/origin/main
           if [[ "$(git rev-parse refs/remotes/origin/main)" != "${BASE_SHA}" ]]; then

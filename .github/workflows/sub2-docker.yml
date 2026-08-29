@@ -10,24 +10,47 @@ on:
         description: Sub2 release tag to build
         required: true
         type: string
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing Sub2 release tag to rebuild (vX.Y.Z-sub2.N)
+        required: true
+        type: string
 
-permissions:
-  contents: read
-  packages: write
+concurrency:
+  group: sub2-docker-release
+  cancel-in-progress: false
+
+permissions: {}
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: kontayun/trilium-sub2
-  RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
 
 jobs:
   build-and-push:
     name: Build and push linux/amd64
     runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    env:
+      RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+      LOCAL_IMAGE: trilium-sub2:release-${{ github.run_id }}
 
     steps:
-      - name: Validate release tag
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate and checkout release tag
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           if [[ ! "${RELEASE_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-sub2\.[0-9]+$ ]]; then
@@ -35,10 +58,29 @@ jobs:
             exit 1
           fi
 
-      - name: Checkout repository
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ env.RELEASE_TAG }}
+          auth_header="$(printf 'x-access-token:%s' "${GH_TOKEN}" | base64 | tr -d '\n')"
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0=http.extraheader
+          export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic ${auth_header}"
+
+          remote_tag="$(git ls-remote --exit-code --tags origin "refs/tags/${RELEASE_TAG}")" || {
+            echo "::error::Release tag does not exist on origin: ${RELEASE_TAG}"
+            exit 1
+          }
+          if [[ -z "${remote_tag}" ]]; then
+            echo "::error::Release tag lookup returned no ref: ${RELEASE_TAG}"
+            exit 1
+          fi
+
+          # Fetch only the exact tag ref, then verify the checked-out commit through the tag.
+          # This prevents a workflow_dispatch input from resolving as a branch or raw SHA.
+          git fetch --no-tags origin "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
+          tag_commit="$(git rev-parse --verify "refs/tags/${RELEASE_TAG}^{commit}")"
+          git checkout --detach "${tag_commit}"
+          if [[ "$(git rev-parse HEAD)" != "${tag_commit}" ]]; then
+            echo "::error::Checkout is not the commit referenced by ${RELEASE_TAG}"
+            exit 1
+          fi
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v6
@@ -52,29 +94,191 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Update build info
-        run: pnpm run chore:update-build-info
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Run LLM and provider tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          # These directory filters include all current and future specs in the relevant domains.
+          pnpm --filter client exec vitest run \
+            src/services/llm_chat \
+            src/widgets/type_widgets/llm_chat \
+            src/widgets/type_widgets/options/llm/AddProviderModal
+
+          pnpm --filter server exec vitest run \
+            src/routes/api/llm_chat \
+            src/services/llm \
+            ../../packages/trilium-core/src/services/llm
+
+      - name: Prepare build metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp packages/trilium-core/src/services/build.ts "${RUNNER_TEMP}/sub2-build-info.ts"
+          pnpm run chore:update-build-info
 
       - name: Build server
         run: pnpm run server:build
 
+      - name: Restore checkout metadata
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -f "${RUNNER_TEMP}/sub2-build-info.ts" ]]; then
+            cp "${RUNNER_TEMP}/sub2-build-info.ts" packages/trilium-core/src/services/build.ts
+          fi
+
+      - name: Check diff whitespace
+        shell: bash
+        run: |
+          set -euo pipefail
+          official_baseline="$(
+            git tag --merged HEAD --list "v*" |
+              grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' |
+              sort -V |
+              tail -n 1 || true
+          )"
+          if [[ -z "${official_baseline}" ]]; then
+            echo "::error::Unable to identify the official stable baseline for ${RELEASE_TAG}."
+            exit 1
+          fi
+          git diff --check "${official_baseline}^{commit}..HEAD"
+          git diff --check
+
+      - name: Check clean worktree
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "$(git status --porcelain)" ]]; then
+            echo "::error::Validation left tracked or untracked files in the worktree; refusing to publish."
+            git status --short
+            exit 1
+          fi
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
+
+      - name: Build linux/amd64 image for smoke test
+        uses: docker/build-push-action@v7
+        with:
+          context: apps/server
+          file: apps/server/Dockerfile
+          platforms: linux/amd64
+          load: true
+          tags: ${{ env.LOCAL_IMAGE }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify image platform
+        shell: bash
+        run: |
+          set -euo pipefail
+          platform="$(docker image inspect "${LOCAL_IMAGE}" --format '{{.Os}}/{{.Architecture}}')"
+          if [[ "${platform}" != "linux/amd64" ]]; then
+            echo "::error::Smoke-test image has unexpected platform: ${platform}"
+            exit 1
+          fi
+
+      - name: Smoke test container health
+        shell: bash
+        run: |
+          set -euo pipefail
+          container_name="trilium-sub2-smoke-${GITHUB_RUN_ID}"
+
+          cleanup() {
+            docker rm --force "${container_name}" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          docker run --detach --name "${container_name}" \
+            --env TRILIUM_DATA_DIR=/tmp/trilium-smoke-data \
+            --env TRILIUM_NETWORK_HOST=127.0.0.1 \
+            --env TRILIUM_NETWORK_PORT=8080 \
+            --tmpfs /tmp/trilium-smoke-data:rw,exec,nosuid,nodev,uid=1000,gid=1000 \
+            "${LOCAL_IMAGE}"
+
+          for attempt in $(seq 1 90); do
+            health="$(docker inspect --format '{{.State.Health.Status}}' "${container_name}" 2>/dev/null || true)"
+            case "${health}" in
+              healthy)
+                echo "Container healthcheck passed."
+                exit 0
+                ;;
+              unhealthy)
+                echo "::error::Container healthcheck reported unhealthy."
+                docker logs --tail 200 "${container_name}" || true
+                exit 1
+                ;;
+            esac
+
+            running="$(docker inspect --format '{{.State.Running}}' "${container_name}" 2>/dev/null || true)"
+            if [[ "${running}" != "true" ]]; then
+              echo "::error::Container exited before becoming healthy."
+              docker logs --tail 200 "${container_name}" || true
+              exit 1
+            fi
+            sleep 2
+          done
+
+          echo "::error::Container did not become healthy within the smoke-test timeout."
+          docker logs --tail 200 "${container_name}" || true
+          exit 1
+
+      - name: Determine whether latest may move
+        id: latest
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ env.RELEASE_TAG }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          auth_header="$(printf 'x-access-token:%s' "${GH_TOKEN}" | base64 | tr -d '\n')"
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0=http.extraheader
+          export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic ${auth_header}"
+
+          release_tags="$(
+            git ls-remote --tags origin 'refs/tags/v*' |
+              awk '$2 !~ /\^\{\}$/ { tag=$2; sub(/^refs\/tags\//, "", tag); if (tag ~ /^v[0-9]+\.[0-9]+\.[0-9]+-sub2\.[0-9]+$/) print tag }'
+          )"
+          highest_tag="$(printf '%s\n' "${release_tags}" | sort -V | tail -n 1)"
+
+          if [[ -z "${highest_tag}" ]]; then
+            echo "::error::No valid Sub2 release tags were found on origin."
+            exit 1
+          fi
+          echo "Highest published Sub2 tag: ${highest_tag}"
+
+          if [[ "${highest_tag}" == "${RELEASE_TAG}" ]]; then
+            echo "update_latest=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "update_latest=false" >> "${GITHUB_OUTPUT}"
+          fi
 
       - name: Log in to GHCR
         uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ github.token }}
 
-      - name: Build and push
-        uses: docker/build-push-action@v7
-        with:
-          context: apps/server
-          file: apps/server/Dockerfile
-          platforms: linux/amd64
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.RELEASE_TAG }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+      - name: Push release image
+        shell: bash
+        env:
+          UPDATE_LATEST: ${{ steps.latest.outputs.update_latest }}
+        run: |
+          set -euo pipefail
+          release_image="${REGISTRY}/${IMAGE_NAME}:${RELEASE_TAG}"
+          docker tag "${LOCAL_IMAGE}" "${release_image}"
+          docker push "${release_image}"
+
+          if [[ "${UPDATE_LATEST}" == "true" ]]; then
+            latest_image="${REGISTRY}/${IMAGE_NAME}:latest"
+            docker tag "${LOCAL_IMAGE}" "${latest_image}"
+            docker push "${latest_image}"
+          else
+            echo "Skipping latest: ${RELEASE_TAG} is not the highest valid Sub2 tag."
+          fi
