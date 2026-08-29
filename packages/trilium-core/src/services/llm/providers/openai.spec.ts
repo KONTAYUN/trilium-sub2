@@ -111,11 +111,13 @@ describe("OpenAiProvider chat", () => {
         await provider.generateTitleForCurrentModel("hi", "gpt-5.6-luna");
 
         const streamOptions = streamTextMock.mock.calls[0][0] as any;
-        expect(streamOptions.providerOptions).toEqual({ openai: { store: false } });
+        expect(streamOptions.providerOptions).toEqual({
+            openai: { store: false, include: [ "reasoning.encrypted_content" ] }
+        });
         expect(streamOptions.tools.web_search).toEqual({ kind: "web_search" });
         expect(streamOptions.stopWhen).toBeDefined();
         expect((generateTextMock.mock.calls[0][0] as any).providerOptions)
-            .toEqual({ openai: { store: false } });
+            .toEqual({ openai: { store: false, include: [ "reasoning.encrypted_content" ] } });
         expect(streamOptions).not.toHaveProperty("maxOutputTokens");
         expect(generateTextMock.mock.calls[0][0]).not.toHaveProperty("maxOutputTokens");
     });
@@ -129,11 +131,19 @@ describe("OpenAiProvider chat", () => {
         await provider.generateTitleForCurrentModel("hi", "gpt-5.6-luna");
 
         expect(streamTextMock.mock.calls[0][0]).toMatchObject({
-            providerOptions: { openai: { store: false, reasoningEffort: "max" } }
+            providerOptions: {
+                openai: {
+                    store: false,
+                    include: [ "reasoning.encrypted_content" ],
+                    reasoningEffort: "max"
+                }
+            }
         });
         expect(streamTextMock.mock.calls[0][0]).not.toHaveProperty("maxOutputTokens");
         expect(generateTextMock.mock.calls[0][0]).toMatchObject({
-            providerOptions: { openai: { store: false } }
+            providerOptions: {
+                openai: { store: false, include: [ "reasoning.encrypted_content" ] }
+            }
         });
         expect(generateTextMock.mock.calls[0][0]).not.toHaveProperty("maxOutputTokens");
         expect(modelMock.mock.calls.map(call => call[0])).toEqual(["gpt-5.6-luna", "gpt-5.6-luna"]);
@@ -162,6 +172,123 @@ describe("OpenAiProvider chat", () => {
         });
 
         expect(streamTextMock.mock.calls[0][0]).not.toHaveProperty("providerOptions");
+    });
+
+    it("replaces a completed visible turn with matching AI SDK replay messages", () => {
+        const provider = new OpenAiProvider("sk-test", "https://sub2api.example/v1", true);
+        const replayMessages = [ {
+            role: "assistant" as const,
+            content: [
+                {
+                    type: "reasoning" as const,
+                    text: "",
+                    providerOptions: {
+                        openai: {
+                            itemId: "rs_test",
+                            reasoningEncryptedContent: "encrypted-test-payload"
+                        }
+                    }
+                },
+                {
+                    type: "text" as const,
+                    text: "Saved answer",
+                    providerOptions: { openai: { itemId: "msg_test", phase: "final_answer" } }
+                }
+            ]
+        } ];
+        const providerReplayState = {
+            version: 1 as const,
+            provider: "openai" as const,
+            mode: "stateless-responses" as const,
+            providerId: "openai-sub2",
+            model: "gpt-5.6-luna",
+            responseMessages: replayMessages
+        };
+
+        provider.chat([
+            { role: "user", content: "Question" },
+            { role: "assistant", content: "Visible thinking", historyType: "thinking" },
+            { role: "assistant", content: "Visible answer", providerReplayState },
+            { role: "user", content: "Follow-up" }
+        ], { providerId: "openai-sub2", model: "gpt-5.6-luna" });
+
+        expect(streamTextMock.mock.calls[0][0].messages).toEqual([
+            { role: "user", content: "Question" },
+            ...replayMessages,
+            { role: "user", content: "Follow-up" }
+        ]);
+    });
+
+    it("collects replay state only for stateless responses", async () => {
+        const responseMessages = [ {
+            role: "assistant" as const,
+            content: [ {
+                type: "reasoning" as const,
+                text: "",
+                providerOptions: {
+                    openai: {
+                        itemId: "rs_test",
+                        reasoningEncryptedContent: "encrypted-test-payload"
+                    }
+                }
+            } ]
+        } ];
+        const result = { responseMessages: Promise.resolve(responseMessages) } as any;
+        const config = { providerId: "openai-sub2", model: "gpt-5.6-luna" };
+
+        await expect(new OpenAiProvider("sk-test", "https://sub2api.example/v1", true)
+            .getReplayState(result, config)).resolves.toEqual({
+            version: 1,
+            provider: "openai",
+            mode: "stateless-responses",
+            providerId: "openai-sub2",
+            model: "gpt-5.6-luna",
+            responseMessages
+        });
+        await expect(new OpenAiProvider("sk-test").getReplayState(result, config))
+            .resolves.toBeUndefined();
+        await expect(new OpenAiProvider("sk-test", "https://sub2api.example/v1", true)
+            .getReplayState(result, { model: "gpt-5.6-luna" }))
+            .resolves.toBeUndefined();
+    });
+
+    it("ignores replay state in stored mode and when the model does not match", () => {
+        const providerReplayState = {
+            version: 1 as const,
+            provider: "openai" as const,
+            mode: "stateless-responses" as const,
+            providerId: "openai-sub2",
+            model: "gpt-5.6-luna",
+            responseMessages: [ { role: "assistant", content: "Replay answer" } ]
+        };
+        const history = [
+            { role: "user" as const, content: "Question" },
+            {
+                role: "assistant" as const,
+                content: "Visible thinking",
+                historyType: "thinking" as const
+            },
+            { role: "assistant" as const, content: "Visible answer", providerReplayState },
+            { role: "user" as const, content: "Follow-up" }
+        ];
+
+        new OpenAiProvider("sk-test").chat(history, {
+            providerId: "openai-sub2",
+            model: "gpt-5.6-luna"
+        });
+        new OpenAiProvider("sk-test", "https://sub2api.example/v1", true).chat(history, {
+            providerId: "openai-sub2",
+            model: "gpt-5.6-terra"
+        });
+
+        for (const call of streamTextMock.mock.calls) {
+            expect(call[0].messages).toEqual([
+                { role: "user", content: "Question" },
+                { role: "assistant", content: "Visible thinking" },
+                { role: "assistant", content: "Visible answer" },
+                { role: "user", content: "Follow-up" }
+            ]);
+        }
     });
 });
 

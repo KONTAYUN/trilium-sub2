@@ -1,4 +1,9 @@
-import type { LlmCitation, LlmErrorDetails, LlmUsage } from "@triliumnext/commons";
+import type {
+    LlmCitation,
+    LlmErrorDetails,
+    LlmProviderReplayState,
+    LlmUsage
+} from "@triliumnext/commons";
 
 export type MessageType = "message" | "error" | "thinking";
 
@@ -148,6 +153,8 @@ export interface StoredMessage {
     errorDetails?: LlmErrorDetails;
     /** Token usage for this response */
     usage?: LlmUsage;
+    /** Hidden provider-specific state needed to continue this assistant turn. */
+    providerReplayState?: LlmProviderReplayState;
     /** User-created text highlights over this message's rendered prose. */
     highlights?: HighlightAnchor[];
 }

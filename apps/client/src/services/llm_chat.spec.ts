@@ -40,6 +40,7 @@ function makeCallbacks(): Record<keyof StreamCallbacks, ReturnType<typeof vi.fn>
         onToolResult: vi.fn(),
         onCitation: vi.fn(),
         onUsage: vi.fn(),
+        onProviderReplay: vi.fn(),
         onError: vi.fn(),
         onDone: vi.fn()
     } as Record<keyof StreamCallbacks, ReturnType<typeof vi.fn>> & StreamCallbacks;
@@ -153,6 +154,14 @@ describe("streamChatCompletion", () => {
     });
 
     it("dispatches every SSE event type to the matching callback", async () => {
+        const replayState = {
+            version: 1,
+            provider: "openai",
+            mode: "stateless-responses",
+            providerId: "openai-sub2",
+            model: "gpt-5.6-luna",
+            responseMessages: [ { role: "assistant", content: "answer" } ]
+        };
         const events = [
             { type: "text", content: "T" },
             { type: "thinking", content: "TH" },
@@ -162,6 +171,7 @@ describe("streamChatCompletion", () => {
             { type: "tool_result", toolCallId: "c1", toolName: "search", result: "res", isError: false },
             { type: "citation", citation: { id: "cit1" } },
             { type: "usage", usage: { totalTokens: 10 } },
+            { type: "provider_replay", state: replayState },
             { type: "done" },
             { type: "unknown_ignored" }
         ];
@@ -186,6 +196,7 @@ describe("streamChatCompletion", () => {
         expect(cb.onToolResult).toHaveBeenCalledWith("c1", "search", "res", false);
         expect(cb.onCitation).toHaveBeenCalledWith({ id: "cit1" });
         expect(cb.onUsage).toHaveBeenCalledWith({ totalTokens: 10 });
+        expect(cb.onProviderReplay).toHaveBeenCalledWith(replayState);
         expect(cb.onDone).toHaveBeenCalledTimes(1);
     });
 

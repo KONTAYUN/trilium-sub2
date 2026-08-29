@@ -37,6 +37,7 @@ function makeCallbacks(): Record<keyof StreamCallbacks, ReturnType<typeof vi.fn>
         onToolResult: vi.fn(),
         onCitation: vi.fn(),
         onUsage: vi.fn(),
+        onProviderReplay: vi.fn(),
         onError: vi.fn(),
         onDone: vi.fn()
     } as Record<keyof StreamCallbacks, ReturnType<typeof vi.fn>> & StreamCallbacks;
@@ -82,11 +83,21 @@ describe("streamChatCompletion in standalone", () => {
         broadcast({ type: "llm-stream", streamId: "someone-else", chunk: { type: "text", content: "not mine" } });
         broadcast({ type: "llm-stream-end", streamId: "someone-else" });
         broadcast(chunk({ type: "text", content: "lo" }));
+        const replayState = {
+            version: 1 as const,
+            provider: "openai" as const,
+            mode: "stateless-responses" as const,
+            providerId: "openai-sub2",
+            model: "gpt-5.6-luna",
+            responseMessages: [ { role: "assistant", content: "hello" } ]
+        };
+        broadcast(chunk({ type: "provider_replay", state: replayState }));
         broadcast(chunk({ type: "done" }));
         broadcast(end);
 
         await streaming;
         expect(cb.onChunk.mock.calls).toEqual([["hel"], ["lo"]]);
+        expect(cb.onProviderReplay).toHaveBeenCalledWith(replayState);
         expect(cb.onDone).toHaveBeenCalledTimes(1);
         // The subscription is dropped once the stream is over.
         expect(handlers).toHaveLength(0);

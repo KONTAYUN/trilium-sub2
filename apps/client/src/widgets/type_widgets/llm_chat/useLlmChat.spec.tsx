@@ -2,6 +2,8 @@ import { render } from "preact";
 import { act } from "preact/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { LlmProviderReplayState } from "@triliumnext/commons";
+
 const streamChatCompletionMock = vi.hoisted(() => vi.fn());
 vi.mock("../../../services/llm_chat.js", () => ({
     streamChatCompletion: streamChatCompletionMock
@@ -27,7 +29,7 @@ vi.mock("../../../services/i18n.js", async (importOriginal) => ({
     t: (key: string) => key
 }));
 
-import { useLlmChat } from "./useLlmChat.js";
+import { buildApiMessages, isProviderReplayCompatible, useLlmChat } from "./useLlmChat.js";
 
 type LlmChatApi = ReturnType<typeof useLlmChat>;
 type LlmChatOptions = Parameters<typeof useLlmChat>[1];
@@ -67,6 +69,32 @@ const PROVIDERS = [
         { id: "llama3.2", name: "llama3.2 (3.2B)", pricing: { input: 0, output: 0 } }
     ] }
 ];
+
+const REPLAY_STATE: LlmProviderReplayState = {
+    version: 1,
+    provider: "openai",
+    mode: "stateless-responses",
+    providerId: "o_1",
+    model: "gpt-5.6-luna",
+    responseMessages: [
+        {
+            role: "assistant",
+            content: [
+                {
+                    type: "reasoning",
+                    text: "",
+                    providerOptions: {
+                        openai: {
+                            itemId: "rs_test",
+                            reasoningEncryptedContent: "encrypted-test-payload"
+                        }
+                    }
+                },
+                { type: "text", text: "First answer" }
+            ]
+        }
+    ]
+};
 
 describe("useLlmChat", () => {
     let captured: LlmChatApi | undefined;
@@ -324,5 +352,172 @@ describe("useLlmChat", () => {
         });
         expect(streamChatCompletionMock.mock.calls[0][1]).not.toHaveProperty("enableExtendedThinking");
         expect(api().getContent()).toMatchObject({ reasoningEffort: "max" });
+    });
+
+    it("persists replay state, survives JSON reload, and sends it on the next user turn", async () => {
+        streamChatCompletionMock
+            .mockImplementationOnce(async (_messages, _options, callbacks) => {
+                callbacks.onChunk("First answer");
+                callbacks.onProviderReplay(REPLAY_STATE);
+                callbacks.onDone();
+            })
+            .mockImplementationOnce(async (_messages, _options, callbacks) => {
+                callbacks.onChunk("Second answer");
+                callbacks.onDone();
+            });
+        await mountChat();
+        await act(async () => {
+            api().setSelectedModel("gpt-5.6-luna", "openai", "o_1");
+            api().setInput("First question");
+        });
+        await act(async () => {
+            await api().handleSubmit(new Event("submit"));
+        });
+
+        const firstTurn = api().getContent();
+        expect(firstTurn.messages.at(-1)?.providerReplayState).toEqual(REPLAY_STATE);
+
+        const reloaded = JSON.parse(JSON.stringify(firstTurn));
+        await act(async () => {
+            api().loadFromContent(reloaded);
+            api().setInput("Follow-up question");
+        });
+        await act(async () => {
+            await api().handleSubmit(new Event("submit"));
+        });
+
+        const secondRequest = streamChatCompletionMock.mock.calls[1][0];
+        expect(secondRequest).toHaveLength(3);
+        expect(secondRequest[1]).toMatchObject({
+            role: "assistant",
+            content: "First answer",
+            providerReplayState: REPLAY_STATE
+        });
+        expect(secondRequest[2]).toMatchObject({ role: "user", content: "Follow-up question" });
+    });
+
+    it("does not send OpenAI replay state after switching provider, config, or model", () => {
+        const conversation = [
+            { id: "u1", role: "user" as const, content: "Question", createdAt: "2026-01-01T00:00:00.000Z" },
+            {
+                id: "a1",
+                role: "assistant" as const,
+                content: "First answer",
+                createdAt: "2026-01-01T00:00:01.000Z",
+                providerReplayState: REPLAY_STATE
+            }
+        ];
+
+        const incompatibleTargets = [
+            { provider: "anthropic", providerId: "a_1", model: "opus" },
+            { provider: "openai", providerId: "other-openai", model: "gpt-5.6-luna" },
+            { provider: "openai", providerId: "o_1", model: "gpt-5.6-terra" }
+        ];
+        for (const target of incompatibleTargets) {
+            expect(buildApiMessages(conversation, target)[1]).not.toHaveProperty("providerReplayState");
+        }
+
+        expect(buildApiMessages(conversation, {
+            provider: "openai",
+            providerId: "o_1",
+            model: "gpt-5.6-luna"
+        })[1]).toHaveProperty("providerReplayState", REPLAY_STATE);
+    });
+
+    it.each([
+        [ undefined, undefined, false ],
+        [ undefined, "o_1", false ],
+        [ "o_1", undefined, false ],
+        [ "other-openai", "o_1", false ],
+        [ "o_1", "o_1", true ]
+    ])("matches replay provider IDs fail-closed (%s / %s)", (stateProviderId, targetProviderId, expected) => {
+        const state = { ...REPLAY_STATE, providerId: stateProviderId };
+
+        expect(isProviderReplayCompatible(state, {
+            provider: "openai",
+            providerId: targetProviderId,
+            model: "gpt-5.6-luna"
+        })).toBe(expected);
+    });
+
+    it("rejects the same replay provider ID with a different model", () => {
+        expect(isProviderReplayCompatible(REPLAY_STATE, {
+            provider: "openai",
+            providerId: "o_1",
+            model: "gpt-5.6-terra"
+        })).toBe(false);
+    });
+
+    it("rejects empty replay provider IDs", () => {
+        expect(isProviderReplayCompatible({ ...REPLAY_STATE, providerId: "" }, {
+            provider: "openai",
+            providerId: "",
+            model: "gpt-5.6-luna"
+        })).toBe(false);
+    });
+
+    it("drops the old replay branch when regenerating the last assistant reply", async () => {
+        await mountChat();
+        await act(async () => {
+            api().loadFromContent({
+                version: 1,
+                selectedModel: "gpt-5.6-luna",
+                selectedProvider: "openai",
+                selectedProviderId: "o_1",
+                messages: [
+                    { id: "u1", role: "user", content: "Question", createdAt: "2026-01-01T00:00:00.000Z" },
+                    {
+                        id: "a1",
+                        role: "assistant",
+                        content: "Old answer",
+                        createdAt: "2026-01-01T00:00:01.000Z",
+                        providerReplayState: REPLAY_STATE
+                    }
+                ]
+            });
+        });
+        await act(async () => {
+            await api().regenerateLastReply();
+        });
+
+        expect(streamChatCompletionMock.mock.calls[0][0]).toEqual([
+            { role: "user", content: "Question" }
+        ]);
+        expect(api().getContent().messages).toEqual([
+            { id: "u1", role: "user", content: "Question", createdAt: "2026-01-01T00:00:00.000Z" }
+        ]);
+    });
+
+    it("does not persist a provisional replay chunk when the stream aborts before done", async () => {
+        streamChatCompletionMock.mockImplementationOnce(async (_messages, _options, callbacks) => {
+            callbacks.onChunk("Partial answer");
+            callbacks.onProviderReplay(REPLAY_STATE);
+            throw new DOMException("aborted", "AbortError");
+        });
+        await mountChat();
+        await act(async () => {
+            api().setSelectedModel("gpt-5.6-luna", "openai", "o_1");
+            api().setInput("Question");
+        });
+        await act(async () => {
+            await api().handleSubmit(new Event("submit"));
+        });
+
+        expect(api().getContent().messages.at(-1)).toMatchObject({ role: "assistant" });
+        expect(api().getContent().messages.at(-1)).not.toHaveProperty("providerReplayState");
+    });
+
+    it("keeps old chats without replay metadata byte-compatible on the wire", () => {
+        expect(buildApiMessages([
+            { id: "u1", role: "user", content: "Question", createdAt: "2026-01-01T00:00:00.000Z" },
+            { id: "a1", role: "assistant", content: "Answer", createdAt: "2026-01-01T00:00:01.000Z" }
+        ], {
+            provider: "openai",
+            providerId: "o_1",
+            model: "gpt-5.6-luna"
+        })).toEqual([
+            { role: "user", content: "Question" },
+            { role: "assistant", content: "Answer" }
+        ]);
     });
 });

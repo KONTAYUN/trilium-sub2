@@ -2,7 +2,7 @@
  * Shared streaming utilities for converting AI SDK streams to SSE chunks.
  */
 
-import type { LlmErrorDetails, LlmStreamChunk } from "@triliumnext/commons";
+import type { LlmErrorDetails, LlmProviderReplayState, LlmStreamChunk } from "@triliumnext/commons";
 import { APICallError, type LanguageModelUsage } from "ai";
 
 import type { ModelPricing, StreamResult } from "./types.js";
@@ -50,6 +50,8 @@ export interface StreamOptions {
     provider?: string;
     /** Model pricing for cost calculation (from provider) */
     pricing?: ModelPricing;
+    /** Lazily collect opaque provider state after the stream completed successfully. */
+    getReplayState?: () => PromiseLike<LlmProviderReplayState | undefined>;
 }
 
 /** Longest response body forwarded to the client; error bodies are normally tiny JSON payloads. */
@@ -196,6 +198,20 @@ export async function* streamToChunks(result: StreamResult, options: StreamOptio
             }
         }
 
+        // An error part makes this turn incomplete even if the SDK happens to
+        // resolve aggregate usage. Never emit replay metadata or a done marker
+        // for a response the stream itself reported as failed.
+        if (errorEmitted) {
+            // The promise may reject independently after fullStream ends. Consume
+            // it so the original stream error remains the only reported failure.
+            try {
+                await result.totalUsage;
+            } catch {
+                // The error part already carried the provider failure.
+            }
+            return;
+        }
+
         // Get usage information after the stream completes. Use `totalUsage`, which
         // aggregates token usage across every step of the agentic loop — `usage` only
         // reports the final step, undercounting cost on turns that involve tool calls.
@@ -226,6 +242,11 @@ export async function* streamToChunks(result: StreamResult, options: StreamOptio
                     provider: options.provider
                 }
             };
+        }
+
+        const replayState = await options.getReplayState?.();
+        if (replayState) {
+            yield { type: "provider_replay", state: replayState };
         }
 
         yield { type: "done" };

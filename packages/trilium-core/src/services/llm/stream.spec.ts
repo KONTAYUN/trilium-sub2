@@ -1,6 +1,6 @@
 import type { LlmStreamChunk } from "@triliumnext/commons";
 import { APICallError } from "ai";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { describeStreamError, formatStreamError, type StreamOptions, streamToChunks } from "./stream.js";
 import type { ModelPricing, StreamResult } from "./types.js";
@@ -75,6 +75,53 @@ describe("streamToChunks", () => {
         ]);
     });
 
+    it("emits provider replay after usage and immediately before done", async () => {
+        const state = {
+            version: 1 as const,
+            provider: "openai" as const,
+            mode: "stateless-responses" as const,
+            providerId: "openai-sub2",
+            model: "gpt-5.6-luna",
+            responseMessages: [ { role: "assistant", content: "answer" } ]
+        };
+        const chunks = await collect(fakeResult(
+            [ { type: "text-delta", text: "answer" } ],
+            Promise.resolve({ inputTokens: 4, outputTokens: 2 })
+        ), { getReplayState: async () => state });
+
+        expect(chunks.slice(-3)).toEqual([
+            {
+                type: "usage",
+                usage: {
+                    promptTokens: 4,
+                    completionTokens: 2,
+                    totalTokens: 6,
+                    cost: undefined,
+                    model: undefined
+                }
+            },
+            { type: "provider_replay", state },
+            { type: "done" }
+        ]);
+    });
+
+    it("turns replay collection failure into an error and never marks the turn done", async () => {
+        const chunks = await collect(fakeResult(
+            [ { type: "text-delta", text: "answer" } ],
+            Promise.resolve({ inputTokens: 4, outputTokens: 2 })
+        ), {
+            getReplayState: async () => {
+                throw new Error("invalid replay output");
+            }
+        });
+
+        expect(errorsOf(chunks)).toEqual([
+            { type: "error", error: "Error: invalid replay output" }
+        ]);
+        expect(chunks.some(chunk => chunk.type === "provider_replay")).toBe(false);
+        expect(chunks.some(chunk => chunk.type === "done")).toBe(false);
+    });
+
     it("does not mask a real stream error with the generic 'No output generated' error", async () => {
         // A genuine error part arrives, then `totalUsage` rejects because no steps ran.
         const chunks = await collect(fakeResult(
@@ -90,6 +137,30 @@ describe("streamToChunks", () => {
         expect(errors[0].error).toContain("Not Found");
         // No spurious done chunk should follow a failed stream.
         expect(chunks.some(c => c.type === "done")).toBe(false);
+    });
+
+    it("does not emit replay or done after an error even when usage resolves", async () => {
+        const getReplayState = vi.fn(async () => ({
+            version: 1 as const,
+            provider: "openai" as const,
+            mode: "stateless-responses" as const,
+            providerId: "openai-sub2",
+            model: "gpt-5.6-luna",
+            responseMessages: [ { role: "assistant", content: "partial" } ]
+        }));
+        const chunks = await collect(fakeResult(
+            [
+                { type: "text-delta", text: "partial" },
+                { type: "error", error: new Error("stream failed") }
+            ],
+            Promise.resolve({ inputTokens: 4, outputTokens: 2 })
+        ), { getReplayState });
+
+        expect(errorsOf(chunks)).toHaveLength(1);
+        expect(getReplayState).not.toHaveBeenCalled();
+        expect(chunks.some(chunk => chunk.type === "usage")).toBe(false);
+        expect(chunks.some(chunk => chunk.type === "provider_replay")).toBe(false);
+        expect(chunks.some(chunk => chunk.type === "done")).toBe(false);
     });
 
     it("carries HTTP status, URL and response body beside the surfaced error", async () => {

@@ -1,4 +1,11 @@
-import type { LlmCitation, LlmMessage, LlmMessagePart, LlmModelInfo, LlmUsage } from "@triliumnext/commons";
+import type {
+    LlmCitation,
+    LlmMessage,
+    LlmMessagePart,
+    LlmModelInfo,
+    LlmProviderReplayState,
+    LlmUsage
+} from "@triliumnext/commons";
 import { RefObject } from "preact";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 
@@ -86,6 +93,47 @@ function flattenToApiContent(content: string | ContentBlock[]): string | LlmMess
 function stripQuoteSourcesFromApiContent(content: string | LlmMessagePart[]): string | LlmMessagePart[] {
     if (typeof content === "string") return stripQuoteSources(content);
     return content.map(part => (part.type === "text" ? { ...part, text: stripQuoteSources(part.text) } : part));
+}
+
+interface ReplayTarget {
+    provider?: string;
+    providerId?: string;
+    model?: string;
+}
+
+function isValidProviderId(value: unknown): value is string {
+    return typeof value === "string" && value.trim().length > 0;
+}
+
+/** Only return hidden state to the exact OpenAI provider configuration/model that produced it. */
+export function isProviderReplayCompatible(
+    state: LlmProviderReplayState | undefined,
+    target: ReplayTarget
+): boolean {
+    return !!state
+        && state.version === 1
+        && state.provider === "openai"
+        && state.mode === "stateless-responses"
+        && target.provider === "openai"
+        && isValidProviderId(state.providerId)
+        && isValidProviderId(target.providerId)
+        && state.providerId === target.providerId
+        && state.model === target.model;
+}
+
+/** Build wire history while keeping provider replay data hidden from unrelated providers. */
+export function buildApiMessages(
+    conversation: StoredMessage[],
+    target: ReplayTarget
+): LlmMessage[] {
+    return trimToFirstUserMessage(conversation).map(message => ({
+        role: message.role,
+        content: stripQuoteSourcesFromApiContent(flattenToApiContent(message.content)),
+        ...(message.type && { historyType: message.type }),
+        ...(isProviderReplayCompatible(message.providerReplayState, target) && {
+            providerReplayState: message.providerReplayState
+        })
+    }));
 }
 
 export interface LlmChatOptions {
@@ -590,6 +638,7 @@ export function useLlmChat(
         const contentBlocks: ContentBlock[] = [];
         const citations: LlmCitation[] = [];
         let usage: LlmUsage | undefined;
+        let providerReplayState: LlmProviderReplayState | undefined;
 
         /** Get or create the last text block to append streaming text to. */
         function lastTextBlock(): ContentBlock & { type: "text" } {
@@ -602,11 +651,6 @@ export function useLlmChat(
             return block as ContentBlock & { type: "text" };
         }
 
-        const apiMessages: LlmMessage[] = trimToFirstUserMessage(conversation).map(m => ({
-            role: m.role,
-            content: stripQuoteSourcesFromApiContent(flattenToApiContent(m.content))
-        }));
-
         // Prefer the provider recorded when the model was picked; fall back to
         // resolving by model ID for chats saved before selectedProvider existed.
         // The fallback returns the first match, so it can pick the wrong provider
@@ -614,12 +658,18 @@ export function useLlmChat(
         // provider entirely, so their IDs only ever match one provider.
         const matchedModel = resolveSelectedModel(availableModels, selectedModel, selectedProvider, selectedProviderId);
         const selectedModelProvider = selectedProvider ?? matchedModel?.provider;
+        const requestProviderId = selectedProviderId ?? matchedModel?.providerId;
+        const apiMessages = buildApiMessages(conversation, {
+            provider: selectedModelProvider,
+            providerId: requestProviderId,
+            model: selectedModel || undefined
+        });
         const streamOptions: Parameters<typeof streamChatCompletion>[1] = {
             model: selectedModel || undefined,
             provider: selectedModelProvider,
             // The config id pins the exact provider instance when several of the
             // same type are configured (e.g. OpenAI + self-hosted Ollama).
-            providerId: selectedProviderId ?? matchedModel?.providerId,
+            providerId: requestProviderId,
             enableWebSearch,
             enableNoteTools,
             contextNoteId,
@@ -637,7 +687,7 @@ export function useLlmChat(
         abortControllerRef.current = abortController;
 
         /** Shared cleanup: finalize collected content and reset streaming state. */
-        function finalizeStream() {
+        function finalizeStream(completed: boolean) {
             // Reveal any remaining smoothed text instantly so the trailing chars
             // don't get clipped when the streaming placeholder is swapped for
             // the finalized message.
@@ -660,6 +710,10 @@ export function useLlmChat(
             }
 
             const finalNewMessages: StoredMessage[] = [];
+            // A replay chunk is provisional until the stream's done marker arrives.
+            // An abort between those two chunks must not persist a turn that the
+            // client cannot prove completed successfully.
+            const completedReplayState = completed ? providerReplayState : undefined;
 
             if (thinkingContent) {
                 finalNewMessages.push({
@@ -667,7 +721,10 @@ export function useLlmChat(
                     role: "assistant",
                     content: thinkingContent,
                     createdAt: new Date().toISOString(),
-                    type: "thinking"
+                    type: "thinking",
+                    ...(contentBlocks.length === 0 && completedReplayState && {
+                        providerReplayState: completedReplayState
+                    })
                 });
             }
 
@@ -678,7 +735,8 @@ export function useLlmChat(
                     content: contentBlocks,
                     createdAt: new Date().toISOString(),
                     citations: citations.length > 0 ? citations : undefined,
-                    usage
+                    usage,
+                    ...(completedReplayState && { providerReplayState: completedReplayState })
                 });
             }
 
@@ -802,6 +860,9 @@ export function useLlmChat(
                     setLastPromptTokens(u.promptTokens);
                     setLastCompletionTokens(u.completionTokens);
                 },
+                onProviderReplay: (state) => {
+                    providerReplayState = state;
+                },
                 onError: (errorMsg, errorDetails) => {
                     console.error("Chat error:", errorMsg, errorDetails);
                     const errorMessage: StoredMessage = {
@@ -820,14 +881,14 @@ export function useLlmChat(
                     setIsStreaming(false);
                 },
                 onDone: () => {
-                    finalizeStream();
+                    finalizeStream(true);
                 }
             },
             abortController.signal
         ).catch((e) => {
             // AbortError is expected when user stops generation
             if (e instanceof DOMException && e.name === "AbortError") {
-                finalizeStream();
+                finalizeStream(false);
                 return;
             }
             // Unexpected error — streamChatCompletion normally routes failures

@@ -1,4 +1,14 @@
-import type { LlmChatConfig, LlmCitation, LlmErrorDetails, LlmMessage, LlmModelInfo, LlmStreamChunk, LlmUsage, WebSocketMessage } from "@triliumnext/commons";
+import type {
+    LlmChatConfig,
+    LlmCitation,
+    LlmErrorDetails,
+    LlmMessage,
+    LlmModelInfo,
+    LlmProviderReplayState,
+    LlmStreamChunk,
+    LlmUsage,
+    WebSocketMessage
+} from "@triliumnext/commons";
 
 import server from "./server.js";
 import { isStandalone, randomString } from "./utils.js";
@@ -54,6 +64,8 @@ export interface StreamCallbacks {
     onToolResult?: (toolCallId: string, toolName: string, result: string, isError?: boolean) => void;
     onCitation?: (citation: LlmCitation) => void;
     onUsage?: (usage: LlmUsage) => void;
+    /** Hidden provider continuation state, delivered once immediately before done. */
+    onProviderReplay?: (state: LlmProviderReplayState) => void;
     /**
      * @param error human-readable message.
      * @param details provider-call context (status, URL, response body), present only
@@ -280,6 +292,9 @@ async function handleChunk(chunk: LlmStreamChunk, callbacks: StreamCallbacks): P
             if (chunk.usage) {
                 callbacks.onUsage?.(chunk.usage);
             }
+            break;
+        case "provider_replay":
+            callbacks.onProviderReplay?.(chunk.state);
             break;
         case "error":
             callbacks.onError(chunk.error, chunk.errorDetails);

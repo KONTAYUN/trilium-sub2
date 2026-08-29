@@ -61,9 +61,20 @@ export async function* runChat(
 
         // Chunk-native provider (e.g. Claude Agent): it owns its own agentic loop
         // and produces LlmStreamChunks directly, including honouring the abort.
-        const chunks = provider.chatChunks
-            ? provider.chatChunks(messages, config, abortSignal)
-            : streamToChunks(provider.chat(messages, config), { model: modelDisplayName, provider: provider.name, pricing });
+        let chunks: AsyncIterable<LlmStreamChunk>;
+        if (provider.chatChunks) {
+            chunks = provider.chatChunks(messages, config, abortSignal);
+        } else {
+            const result = provider.chat(messages, config);
+            chunks = streamToChunks(result, {
+                model: modelDisplayName,
+                provider: provider.name,
+                pricing,
+                ...(provider.getReplayState && {
+                    getReplayState: () => provider.getReplayState!(result, config)
+                })
+            });
+        }
 
         for await (const chunk of chunks) {
             if (abortSignal?.aborted) {

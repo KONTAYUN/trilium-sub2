@@ -52,12 +52,36 @@ export interface LlmTextAttachmentPart {
 export type LlmMessagePart = LlmTextPart | LlmImagePart | LlmFilePart | LlmTextAttachmentPart;
 
 /**
+ * Opaque AI SDK response messages needed to continue an OpenAI Responses chat
+ * without server-side storage. The client persists these beside the visible
+ * assistant message and sends them back only to the exact provider/model that
+ * produced them.
+ */
+export interface LlmOpenAiResponsesReplayState {
+    version: 1;
+    provider: "openai";
+    mode: "stateless-responses";
+    /** Exact provider configuration that produced this state. */
+    providerId?: string;
+    /** Exact model selected for the completed turn. */
+    model: string;
+    /** AI SDK ResponseMessage objects, kept opaque outside the server. */
+    responseMessages: unknown[];
+}
+
+export type LlmProviderReplayState = LlmOpenAiResponsesReplayState;
+
+/**
  * A chat message in the conversation. `content` may be a plain string (the
  * common case) or an ordered array of parts when the message includes images.
  */
 export interface LlmMessage {
     role: "user" | "assistant" | "system";
     content: string | LlmMessagePart[];
+    /** UI-only classification used to avoid replaying visible thinking twice. */
+    historyType?: "message" | "error" | "thinking";
+    /** Hidden provider continuation data. Ignored by providers that do not own it. */
+    providerReplayState?: LlmProviderReplayState;
 }
 
 /**
@@ -197,5 +221,6 @@ export type LlmStreamChunk =
     | { type: "tool_result"; toolCallId: string; toolName: string; result: string; isError?: boolean }
     | { type: "citation"; citation: LlmCitation }
     | { type: "usage"; usage: LlmUsage }
+    | { type: "provider_replay"; state: LlmProviderReplayState }
     | { type: "error"; error: string; errorDetails?: LlmErrorDetails }
     | { type: "done" };

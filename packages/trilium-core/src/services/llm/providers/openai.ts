@@ -3,12 +3,14 @@ import {
     type OpenAILanguageModelResponsesOptions,
     type OpenAIProvider as OpenAISDKProvider
 } from "@ai-sdk/openai";
-import type { ToolSet } from "ai";
+import type { LlmMessage } from "@triliumnext/commons";
+import type { ModelMessage, ToolSet } from "ai";
 
-import type { LlmProviderConfig, ModelInfo } from "../types.js";
-import { BaseProvider, type RemoteModel } from "./base_provider.js";
+import type { LlmProviderConfig, ModelInfo, StreamResult } from "../types.js";
+import { BaseProvider, buildModelMessage, type RemoteModel } from "./base_provider.js";
 import { llmFetch } from "./fetch.js";
 import { enrichOpenAiModels, getOpenAiModelCapabilities } from "./openai_model_capabilities.js";
+import { createOpenAiReplayState, restoreOpenAiReplayMessages } from "./openai_replay.js";
 
 const OFFICIAL_BASE_URL = "https://api.openai.com/v1";
 
@@ -40,14 +42,14 @@ export class OpenAiProvider extends BaseProvider {
         return this.openai(modelId);
     }
 
-    /**
-     * AI SDK 4.0.42 automatically requests encrypted reasoning for recognized
-     * reasoning models when store is false, then replays it on later agent steps.
-     */
+    /** Provider options shared by chat and stateless title generation. */
     protected override buildProviderOptions(config?: LlmProviderConfig) {
         const options: OpenAILanguageModelResponsesOptions = {};
         if (this.statelessResponses) {
             options.store = false;
+            // Supported explicitly by @ai-sdk/openai 4.0.42. The SDK de-duplicates
+            // this with its model-name-based automatic include.
+            options.include = [ "reasoning.encrypted_content" ];
         }
 
         const modelId = config?.model ?? this.defaultModel;
@@ -63,6 +65,50 @@ export class OpenAiProvider extends BaseProvider {
         return {
             openai: options
         };
+    }
+
+    /**
+     * Replace visible assistant history with the AI SDK response messages that
+     * produced it. This preserves encrypted reasoning and real tool call/result
+     * parts without sending the final assistant text twice.
+     */
+    protected override buildMessages(
+        chatMessages: LlmMessage[],
+        config: LlmProviderConfig = {}
+    ): ModelMessage[] {
+        if (!this.statelessResponses) {
+            return super.buildMessages(chatMessages, config);
+        }
+
+        const model = config.model || this.defaultModel;
+        const replayMessages = chatMessages.map(message =>
+            restoreOpenAiReplayMessages(message.providerReplayState, config, model));
+        const result: ModelMessage[] = [];
+
+        for (let index = 0; index < chatMessages.length; index++) {
+            const replay = replayMessages[index];
+            if (replay) {
+                result.push(...replay);
+                continue;
+            }
+
+            // Trilium stores visible thinking as a separate assistant message.
+            // The following replay state already contains that reasoning part.
+            if (chatMessages[index].historyType === "thinking" && replayMessages[index + 1]) {
+                continue;
+            }
+
+            result.push(buildModelMessage(chatMessages[index]));
+        }
+        return result;
+    }
+
+    async getReplayState(result: StreamResult, config: LlmProviderConfig) {
+        if (!this.statelessResponses) {
+            return undefined;
+        }
+        const model = config.model || this.defaultModel;
+        return createOpenAiReplayState(await result.responseMessages, config, model);
     }
 
     /** OAuth-backed stateless Responses endpoints reject max_output_tokens. */

@@ -316,7 +316,10 @@ export abstract class BaseProvider implements LlmProvider {
      * separately via the `system` option of `streamText` (see `buildSystemMessage`),
      * which is resilient against prompt injection.
      */
-    protected buildMessages(chatMessages: LlmMessage[]): ModelMessage[] {
+    protected buildMessages(
+        chatMessages: LlmMessage[],
+        _config?: LlmProviderConfig
+    ): ModelMessage[] {
         return chatMessages.map(m => buildModelMessage(m));
     }
 
@@ -411,7 +414,7 @@ export abstract class BaseProvider implements LlmProvider {
     chat(messages: LlmMessage[], config: LlmProviderConfig): StreamResult {
         const systemPrompt = this.buildSystemPrompt(messages, config);
         const chatMessages = this.applyNoteHint(messages.filter(m => m.role !== "system"), config);
-        const coreMessages = this.buildMessages(chatMessages);
+        const coreMessages = this.buildMessages(chatMessages, config);
         const providerOptions = this.buildProviderOptions(config);
 
         const streamOptions: Parameters<typeof streamText>[0] = {

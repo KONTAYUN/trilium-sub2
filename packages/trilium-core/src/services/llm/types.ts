@@ -4,7 +4,12 @@
  * should be imported from @triliumnext/commons.
  */
 
-import type { LlmChatConfig, LlmMessage, LlmStreamChunk } from "@triliumnext/commons";
+import type {
+    LlmChatConfig,
+    LlmMessage,
+    LlmProviderReplayState,
+    LlmStreamChunk
+} from "@triliumnext/commons";
 import type { streamText } from "ai";
 
 /**
@@ -73,6 +78,15 @@ export interface LlmProvider {
         messages: LlmMessage[],
         config: LlmProviderConfig
     ): StreamResult;
+
+    /**
+     * Provider-specific state to persist after a successful AI SDK turn.
+     * Providers that do not need opaque cross-request continuation omit it.
+     */
+    getReplayState?(
+        result: StreamResult,
+        config: LlmProviderConfig
+    ): Promise<LlmProviderReplayState | undefined>;
 
     /**
      * Chunk-native alternative to {@link chat} for providers that don't go
