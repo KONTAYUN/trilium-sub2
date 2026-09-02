@@ -77,6 +77,11 @@ jobs:
           set -euo pipefail
           git fetch --prune upstream --tags
 
+      - name: Set up Node.js for upstream SDK guard
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
       - name: Plan and merge upstream release
         id: sync
         shell: bash
@@ -135,6 +140,10 @@ jobs:
             exit 1
           fi
 
+          # Read the manifests from the upstream tag itself, before the fork merge can
+          # replace them with the patched archive.
+          node --experimental-strip-types scripts/openai-patch-guard.mts check-upstream "${OFFICIAL_TAG}"
+
           auth_header="$(printf 'x-access-token:%s' "${GH_TOKEN}" | base64 | tr -d '\n')"
           export GIT_CONFIG_COUNT=1
           export GIT_CONFIG_KEY_0=http.extraheader
@@ -182,16 +191,63 @@ jobs:
         if: steps.sync.outputs.updated == 'true'
         uses: pnpm/action-setup@v6
 
-      - name: Set up Node.js
+      - name: Restore patched SDK and refresh lockfile
+        id: patch
+        if: steps.sync.outputs.updated == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --experimental-strip-types scripts/openai-patch-guard.mts restore
+          # Let pnpm regenerate the lockfile from structured manifests; never edit YAML by text.
+          pnpm install --lockfile-only --ignore-scripts
+
+          allowed_files=$'apps/server/package.json\npackages/trilium-core/package.json\npnpm-lock.yaml'
+          unexpected_files="$(git status --porcelain=v1 | sed -E 's/^.. //' | while IFS= read -r path; do
+            if ! grep -Fxq "${path}" <<<"${allowed_files}"; then
+              printf '%s\n' "${path}"
+            fi
+          done)"
+          if [[ -n "${unexpected_files}" ]]; then
+            echo "::error::SDK restoration produced unexpected worktree changes."
+            printf '%s\n' "${unexpected_files}"
+            exit 1
+          fi
+
+          git add -- apps/server/package.json packages/trilium-core/package.json pnpm-lock.yaml
+          if git diff --cached --quiet; then
+            echo "amend_required=false" >> "${GITHUB_OUTPUT}"
+          else
+            echo "amend_required=true" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Fold patched SDK restoration into merge commit
+        if: steps.patch.outputs.amend_required == 'true'
+        run: |
+          git commit --amend --no-edit
+
+      - name: Enable pnpm dependency cache
         if: steps.sync.outputs.updated == 'true'
         uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
 
+      - name: Verify patched SDK archive
+        if: steps.sync.outputs.updated == 'true'
+        shell: bash
+        env:
+          NODE_USE_ENV_PROXY: "1"
+        run: |
+          set -euo pipefail
+          node --experimental-strip-types scripts/openai-patch-guard.mts verify-tarball
+
       - name: Install dependencies
         if: steps.sync.outputs.updated == 'true'
         run: pnpm install --frozen-lockfile
+
+      - name: Verify patched SDK resolution
+        if: steps.sync.outputs.updated == 'true'
+        run: node --experimental-strip-types scripts/openai-patch-guard.mts verify
 
       - name: Typecheck
         if: steps.sync.outputs.updated == 'true'
@@ -213,6 +269,10 @@ jobs:
             src/routes/api/llm_chat \
             src/services/llm \
             ../../packages/trilium-core/src/services/llm
+
+      - name: Run OpenAI stateless Web Search replay regression
+        if: steps.sync.outputs.updated == 'true'
+        run: pnpm --filter server exec vitest run ../../packages/trilium-core/src/services/llm/providers/openai_stateless_payload.spec.ts
 
       - name: Build server
         if: steps.sync.outputs.updated == 'true'

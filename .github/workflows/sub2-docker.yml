@@ -98,6 +98,7 @@ jobs:
           echo "Official baseline: ${official_tag} (${official_commit})"
           echo "OFFICIAL_TAG=${official_tag}" >> "${GITHUB_ENV}"
           echo "OFFICIAL_COMMIT=${official_commit}" >> "${GITHUB_ENV}"
+          echo "OFFICIAL_REF=${official_ref}" >> "${GITHUB_ENV}"
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v6
@@ -108,8 +109,20 @@ jobs:
           node-version: 24
           cache: pnpm
 
+      - name: Verify upstream SDK baseline
+        run: node --experimental-strip-types scripts/openai-patch-guard.mts check-upstream "${OFFICIAL_REF}"
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Verify patched SDK archive and installation
+        shell: bash
+        env:
+          NODE_USE_ENV_PROXY: "1"
+        run: |
+          set -euo pipefail
+          node --experimental-strip-types scripts/openai-patch-guard.mts verify-tarball
+          node --experimental-strip-types scripts/openai-patch-guard.mts verify
 
       - name: Typecheck
         run: pnpm typecheck
@@ -128,6 +141,9 @@ jobs:
             src/routes/api/llm_chat \
             src/services/llm \
             ../../packages/trilium-core/src/services/llm
+
+      - name: Run OpenAI stateless Web Search replay regression
+        run: pnpm --filter server exec vitest run ../../packages/trilium-core/src/services/llm/providers/openai_stateless_payload.spec.ts
 
       - name: Prepare build metadata
         shell: bash

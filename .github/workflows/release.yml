@@ -25,10 +25,29 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies
+        if: ${{ !contains(github.ref_name, '-sub2.') }}
         run: pnpm install --filter source --frozen-lockfile --ignore-scripts
+
+      - name: Install Sub2 release gate dependencies
+        if: ${{ contains(github.ref_name, '-sub2.') }}
+        run: pnpm install --frozen-lockfile
 
       - name: Check version consistency
         run: pnpm tsx ${{ github.workspace }}/scripts/check-version-consistency.ts ${{ github.ref_name }}
+
+      - name: Verify Sub2 patched OpenAI SDK
+        if: ${{ contains(github.ref_name, '-sub2.') }}
+        run: node --experimental-strip-types scripts/openai-patch-guard.mts verify
+
+      - name: Verify Sub2 patched OpenAI SDK archive
+        if: ${{ contains(github.ref_name, '-sub2.') }}
+        env:
+          NODE_USE_ENV_PROXY: "1"
+        run: node --experimental-strip-types scripts/openai-patch-guard.mts verify-tarball
+
+      - name: Run Sub2 OpenAI stateless replay regression
+        if: ${{ contains(github.ref_name, '-sub2.') }}
+        run: pnpm --filter server exec vitest run ../../packages/trilium-core/src/services/llm/providers/openai_stateless_payload.spec.ts
   make-electron:
     name: Make Electron
     needs:

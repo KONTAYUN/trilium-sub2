@@ -595,8 +595,8 @@ importers:
         specifier: 4.0.44
         version: 4.0.44(zod@4.4.3)
       '@ai-sdk/openai':
-        specifier: 4.0.42
-        version: 4.0.42(zod@4.4.3)
+        specifier: https://github.com/KONTAYUN/ai/releases/download/openai-web-search-replay-v4.0.42-r2/ai-sdk-openai-4.0.42-web-search-replay-r2.tgz
+        version: https://github.com/KONTAYUN/ai/releases/download/openai-web-search-replay-v4.0.42-r2/ai-sdk-openai-4.0.42-web-search-replay-r2.tgz(zod@4.4.3)
       '@anthropic-ai/claude-agent-sdk':
         specifier: ^0.3.207
         version: 0.3.233(@anthropic-ai/sdk@0.111.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.30.0(supports-color@10.2.2)(zod@4.4.3))(zod@4.4.3)
@@ -1384,8 +1384,8 @@ importers:
         specifier: 4.0.44
         version: 4.0.44(zod@4.4.3)
       '@ai-sdk/openai':
-        specifier: 4.0.42
-        version: 4.0.42(zod@4.4.3)
+        specifier: https://github.com/KONTAYUN/ai/releases/download/openai-web-search-replay-v4.0.42-r2/ai-sdk-openai-4.0.42-web-search-replay-r2.tgz
+        version: https://github.com/KONTAYUN/ai/releases/download/openai-web-search-replay-v4.0.42-r2/ai-sdk-openai-4.0.42-web-search-replay-r2.tgz(zod@4.4.3)
       '@braintree/sanitize-url':
         specifier: 7.1.2
         version: 7.1.2
@@ -1531,8 +1531,9 @@ packages:
     peerDependencies:
       zod: '>=4.0.0'
 
-  '@ai-sdk/openai@4.0.42':
-    resolution: {integrity: sha512-ZxDca6jJalYuXrIGVrw6dnkpz1Io9AWy+/b/wVWIbjigHCbd+zWLpPi8NnK0OFU+U3YCpP+KWfUvEnG5pFhltA==}
+  '@ai-sdk/openai@https://github.com/KONTAYUN/ai/releases/download/openai-web-search-replay-v4.0.42-r2/ai-sdk-openai-4.0.42-web-search-replay-r2.tgz':
+    resolution: {integrity: sha512-1mBKWV6qz2tenJGZ9YltJoVS2voOyty+R7KfThe2HZgA/BuO+GcSO5W7Me9+E3KRLG9f4YpQVMjCyS34pmJt5A==, tarball: https://github.com/KONTAYUN/ai/releases/download/openai-web-search-replay-v4.0.42-r2/ai-sdk-openai-4.0.42-web-search-replay-r2.tgz}
+    version: 4.0.42
     engines: {node: '>=22'}
     peerDependencies:
       zod: '>=4.0.0'
@@ -12493,7 +12494,7 @@ snapshots:
       '@ai-sdk/provider-utils': 5.0.27(zod@4.4.3)
       zod: 4.4.3
 
-  '@ai-sdk/openai@4.0.42(zod@4.4.3)':
+  '@ai-sdk/openai@https://github.com/KONTAYUN/ai/releases/download/openai-web-search-replay-v4.0.42-r2/ai-sdk-openai-4.0.42-web-search-replay-r2.tgz(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 4.0.7
       '@ai-sdk/provider-utils': 5.0.27(zod@4.4.3)
