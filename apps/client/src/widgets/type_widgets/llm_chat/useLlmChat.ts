@@ -591,17 +591,7 @@ export function useLlmChat(
         if (supportsExtendedThinking && typeof content.enableExtendedThinking === "boolean") {
             setEnableExtendedThinking(content.enableExtendedThinking);
         }
-        // Normalize values saved by older builds (for example the removed
-        // `ultra` option) before they can be shown or persisted again.
-        const loadedModel = resolveSelectedModel(
-            availableModelsRef.current,
-            content.selectedModel ?? selectedModelRef.current,
-            content.selectedProvider ?? selectedProviderRef.current,
-            content.selectedProviderId ?? selectedProviderIdRef.current
-        );
-        setChatReasoningEffort(loadedModel
-            ? reconcileReasoningEffort(loadedModel, content.reasoningEffort)
-            : content.reasoningEffort);
+        setChatReasoningEffort(content.reasoningEffort);
         // Restore last prompt tokens from the most recent message with usage
         const lastUsage = [...(content.messages || [])].reverse().find(m => m.usage)?.usage;
         setLastPromptTokens(lastUsage?.promptTokens ?? 0);

@@ -342,15 +342,6 @@ describe("useLlmChat", () => {
         });
         expect(api().reasoningEffort).toBe("medium");
 
-        // A chat saved by the broken build cannot reintroduce `ultra` after the
-        // capability table is corrected.
-        await act(async () => {
-            api().loadFromContent({
-                version: 1, messages: [], selectedModel: "gpt-6-astra",
-                selectedProvider: "openai", selectedProviderId: "o_1", reasoningEffort: "ultra"
-            });
-        });
-        expect(api().reasoningEffort).toBe("medium");
         await act(async () => {
             api().setReasoningEffort("max");
         });
