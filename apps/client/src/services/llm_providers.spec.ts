@@ -13,7 +13,7 @@ describe("saved OpenAI model capabilities", () => {
         const configs = [{
             id: "relay", name: "My relay", provider: "openai", selectedModels: [
                 { id: "gpt-6", name: "GPT-6", contextWindow: 12345, pricing: { input: 1, output: 2 } },
-                { id: "gpt-6-astra", name: "Astra", supportedReasoningEfforts: ["none"], defaultReasoningEffort: "none" }
+                { id: "gpt-6-astra", name: "Astra", supportedReasoningEfforts: ["ultra"], defaultReasoningEffort: "ultra" }
             ]
         }];
         const original = JSON.stringify(configs);
@@ -23,7 +23,7 @@ describe("saved OpenAI model capabilities", () => {
         for (const model of models) {
             expect(model).toMatchObject({
                 provider: "openai", providerId: "relay", providerName: "My relay",
-                supportedReasoningEfforts: ["low", "medium", "high", "xhigh", "max", "ultra"],
+                supportedReasoningEfforts: ["minimal", "low", "medium", "high", "xhigh", "max"],
                 defaultReasoningEffort: "medium"
             });
         }

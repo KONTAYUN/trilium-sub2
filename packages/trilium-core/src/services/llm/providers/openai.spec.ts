@@ -168,18 +168,18 @@ describe("OpenAiProvider chat", () => {
         const provider = new OpenAiProvider("sk-test", "https://sub2.invalid/v1", true);
         provider.chat([{ role: "user", content: "hi" }], {
             model,
-            reasoningEffort: "ultra",
+            reasoningEffort: "max",
             enableWebSearch: true
         });
         expect(streamTextMock.mock.calls[0][0]).toMatchObject({
             providerOptions: {
-                openai: { reasoningEffort: "ultra", store: false, include: ["reasoning.encrypted_content"] }
+                openai: { reasoningEffort: "max", store: false, include: ["reasoning.encrypted_content"] }
             },
             tools: { web_search: { kind: "web_search" } }
         });
     });
 
-    it.each(["none", "minimal", "invalid"])("does not forward unsupported GPT-6 effort %s", (reasoningEffort) => {
+    it.each(["none", "ultra", "invalid"])("does not forward unsupported GPT-6 effort %s", (reasoningEffort) => {
         new OpenAiProvider("sk-test").chat([{ role: "user", content: "hi" }], {
             model: "gpt-6-astra",
             reasoningEffort
@@ -359,7 +359,7 @@ describe("OpenAiProvider model listing", () => {
             expect(models.map(model => model.id)).toEqual(["gpt-6", "gpt-6-astra"]);
             for (const model of models) {
                 expect(model).toMatchObject({
-                    supportedReasoningEfforts: ["low", "medium", "high", "xhigh", "max", "ultra"],
+                    supportedReasoningEfforts: ["minimal", "low", "medium", "high", "xhigh", "max"],
                     defaultReasoningEffort: "medium"
                 });
                 expect(model.pricing).toBeUndefined();

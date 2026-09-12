@@ -17,13 +17,20 @@ describe("OpenAI model capabilities", () => {
     it("recognizes exact GPT-6 IDs without guessing relay aliases or variants", () => {
         for (const modelId of ["gpt-6", "gpt-6-astra"]) {
             expect(getOpenAiModelCapabilities(modelId)).toEqual({
-                supportedReasoningEfforts: ["low", "medium", "high", "xhigh", "max", "ultra"],
+                supportedReasoningEfforts: ["minimal", "low", "medium", "high", "xhigh", "max"],
                 defaultReasoningEffort: "medium"
             });
         }
         for (const modelId of ["gpt6", "gpt-6-pro", "gpt-6-unknown", "constructor", "toString"]) {
             expect(getOpenAiModelCapabilities(modelId)).toBeUndefined();
         }
+    });
+
+    it("keeps GPT-6 efforts within the Responses API enum", () => {
+        expect(getOpenAiModelCapabilities("gpt-6-astra")?.supportedReasoningEfforts)
+            .toEqual(["minimal", "low", "medium", "high", "xhigh", "max"]);
+        expect(getOpenAiModelCapabilities("gpt-6-astra")?.supportedReasoningEfforts)
+            .not.toContain("ultra");
     });
 
     it("enriches without replacing price/context metadata or mutating the source", () => {

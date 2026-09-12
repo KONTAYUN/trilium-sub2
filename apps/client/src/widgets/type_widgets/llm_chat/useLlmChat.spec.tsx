@@ -322,7 +322,7 @@ describe("useLlmChat", () => {
         expect(api().reasoningEffort).toBe("medium");
     });
 
-    it("enables saved GPT-6 models, falls back from none, and persists/sends ultra", async () => {
+    it("enables saved GPT-6 models, falls back from none, and persists/sends max", async () => {
         optionsGetJsonMock.mockReturnValue([{
             id: "o_1", name: "Relay", provider: "openai", selectedModels: [
                 { id: "gpt-5.6-luna", name: "Luna" },
@@ -341,11 +341,21 @@ describe("useLlmChat", () => {
             api().setSelectedModel("gpt-6-astra", "openai", "o_1");
         });
         expect(api().reasoningEffort).toBe("medium");
+
+        // A chat saved by the broken build cannot reintroduce `ultra` after the
+        // capability table is corrected.
         await act(async () => {
-            api().setReasoningEffort("ultra");
+            api().loadFromContent({
+                version: 1, messages: [], selectedModel: "gpt-6-astra",
+                selectedProvider: "openai", selectedProviderId: "o_1", reasoningEffort: "ultra"
+            });
+        });
+        expect(api().reasoningEffort).toBe("medium");
+        await act(async () => {
+            api().setReasoningEffort("max");
         });
         const saved = JSON.parse(JSON.stringify(api().getContent()));
-        expect(saved.reasoningEffort).toBe("ultra");
+        expect(saved.reasoningEffort).toBe("max");
         await act(async () => {
             api().loadFromContent(saved);
             api().setInput("hello");
@@ -354,7 +364,7 @@ describe("useLlmChat", () => {
             await api().handleSubmit(new Event("submit"));
         });
         expect(streamChatCompletionMock.mock.calls[0][1]).toMatchObject({
-            model: "gpt-6-astra", provider: "openai", providerId: "o_1", reasoningEffort: "ultra"
+            model: "gpt-6-astra", provider: "openai", providerId: "o_1", reasoningEffort: "max"
         });
     });
 

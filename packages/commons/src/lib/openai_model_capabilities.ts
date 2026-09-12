@@ -10,7 +10,7 @@ const GPT_5_6_REASONING: OpenAiModelCapabilities = {
 };
 
 const GPT_6_REASONING: OpenAiModelCapabilities = {
-    supportedReasoningEfforts: ["low", "medium", "high", "xhigh", "max", "ultra"],
+    supportedReasoningEfforts: ["minimal", "low", "medium", "high", "xhigh", "max"],
     // App default, preserving the existing chat selector's medium effort.
     defaultReasoningEffort: "medium"
 };

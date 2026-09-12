@@ -71,7 +71,7 @@ describe("@ai-sdk/openai stateless Responses payload replay", () => {
         });
         const config = { providerId: "test", model: modelId };
         let replay: ModelMessage[] = [];
-        for (const effort of ["low", "medium", "high", "xhigh", "max", "ultra"]) {
+        for (const effort of ["minimal", "low", "medium", "high", "xhigh", "max"]) {
             const result = await generateText({
                 model: openai(modelId),
                 messages: [{ role: "user", content: "Question" }, ...replay, { role: "user", content: "Continue" }],

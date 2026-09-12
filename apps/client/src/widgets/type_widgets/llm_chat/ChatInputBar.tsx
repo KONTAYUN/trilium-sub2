@@ -651,12 +651,12 @@ function ReasoningEffortSelector({ efforts, selected, onSelect, disabled, inSide
 function reasoningEffortLabel(effort: string): string {
     switch (effort) {
         case "none": return t("llm_chat.reasoning_effort_none");
+        case "minimal": return t("llm_chat.reasoning_effort_minimal");
         case "low": return t("llm_chat.reasoning_effort_low");
         case "medium": return t("llm_chat.reasoning_effort_medium");
         case "high": return t("llm_chat.reasoning_effort_high");
         case "xhigh": return t("llm_chat.reasoning_effort_xhigh");
         case "max": return t("llm_chat.reasoning_effort_max");
-        case "ultra": return t("llm_chat.reasoning_effort_ultra");
         default: return effort;
     }
 }
