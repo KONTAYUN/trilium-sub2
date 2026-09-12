@@ -52,6 +52,51 @@ function message(id: string, text: string, annotations: unknown[] = []) {
 }
 
 describe("@ai-sdk/openai stateless Responses payload replay", () => {
+    it.each(["gpt-6", "gpt-6-astra"])("sends %s reasoning effort on the wire while preserving stateless replay", async (modelId) => {
+        const requestBodies: Record<string, unknown>[] = [];
+        const openai = createOpenAI({
+            apiKey: "test-key",
+            baseURL: "https://sub2.invalid/v1",
+            fetch: async (_input, init) => {
+                requestBodies.push(JSON.parse(String(init?.body)));
+                const sequence = requestBodies.length;
+                return new Response(JSON.stringify({
+                    ...response([
+                        reasoning(`rs_${sequence}`, `encrypted-test-${sequence}`),
+                        message(`msg_${sequence}`, `Answer ${sequence}`)
+                    ], `resp_${sequence}`),
+                    model: modelId
+                }), { headers: { "Content-Type": "application/json" } });
+            }
+        });
+        const config = { providerId: "test", model: modelId };
+        let replay: ModelMessage[] = [];
+        for (const effort of ["low", "medium", "high", "xhigh", "max", "ultra"]) {
+            const result = await generateText({
+                model: openai(modelId),
+                messages: [{ role: "user", content: "Question" }, ...replay, { role: "user", content: "Continue" }],
+                providerOptions: { openai: { ...STATELESS_OPTIONS, reasoningEffort: effort } }
+            });
+            const body = requestBodies.at(-1)!;
+            expect(body).toMatchObject({ store: false, reasoning: { effort }, include: ["reasoning.encrypted_content"] });
+            expect(body).not.toHaveProperty("previous_response_id");
+            expect(body).not.toHaveProperty("conversation");
+            if (replay.length) {
+                expect(body.input).toContainEqual(expect.objectContaining({
+                    type: "reasoning", encrypted_content: `encrypted-test-${requestBodies.length - 1}`
+                }));
+                expect(body.input).toContainEqual(expect.objectContaining({
+                    role: "assistant", content: expect.arrayContaining([
+                        expect.objectContaining({ type: "output_text", text: `Answer ${requestBodies.length - 1}` })
+                    ])
+                }));
+            }
+            const persisted = JSON.parse(JSON.stringify(createOpenAiReplayState(result.responseMessages, config, modelId)));
+            replay = restoreOpenAiReplayMessages(persisted, config, modelId)!;
+        }
+        expect(requestBodies).toHaveLength(6);
+    });
+
     it("replays encrypted reasoning and function tool output after JSON persistence", async () => {
         const replies = [
             response([

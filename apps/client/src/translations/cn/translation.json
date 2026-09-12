@@ -2815,6 +2815,7 @@
     "reasoning_effort_high": "高",
     "reasoning_effort_xhigh": "极高",
     "reasoning_effort_max": "最大",
+    "reasoning_effort_ultra": "极致",
     "thinking": "正在思考...",
     "thought_process": "思考过程",
     "tool_calls": "{{count}} 次工具调用",

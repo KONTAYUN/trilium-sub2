@@ -656,6 +656,7 @@ function reasoningEffortLabel(effort: string): string {
         case "high": return t("llm_chat.reasoning_effort_high");
         case "xhigh": return t("llm_chat.reasoning_effort_xhigh");
         case "max": return t("llm_chat.reasoning_effort_max");
+        case "ultra": return t("llm_chat.reasoning_effort_ultra");
         default: return effort;
     }
 }

@@ -2518,6 +2518,7 @@
     "reasoning_effort_high": "High",
     "reasoning_effort_xhigh": "Extra high",
     "reasoning_effort_max": "Maximum",
+    "reasoning_effort_ultra": "Ultra",
     "model_cost_included": "Subscription",
     "no_models_selected": "No models selected — click the pencil to choose",
     "no_model_selected": "Select a model",

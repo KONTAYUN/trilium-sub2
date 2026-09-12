@@ -125,6 +125,12 @@ export class OpenAiProvider extends BaseProvider {
         return enrichOpenAiModels(super.getAvailableModels());
     }
 
+    override async listModels(): Promise<ModelInfo[]> {
+        // Remote-only models are absent from the price catalog. Enrich after
+        // merging too, so their reasoning controls do not depend on prices.
+        return enrichOpenAiModels(await super.listModels());
+    }
+
     /**
      * List models from the OpenAI-compatible `/models` endpoint. On the
      * official endpoint the list is full of non-chat models (embeddings,

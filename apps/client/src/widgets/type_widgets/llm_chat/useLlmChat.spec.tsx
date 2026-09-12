@@ -322,6 +322,42 @@ describe("useLlmChat", () => {
         expect(api().reasoningEffort).toBe("medium");
     });
 
+    it("enables saved GPT-6 models, falls back from none, and persists/sends ultra", async () => {
+        optionsGetJsonMock.mockReturnValue([{
+            id: "o_1", name: "Relay", provider: "openai", selectedModels: [
+                { id: "gpt-5.6-luna", name: "Luna" },
+                { id: "gpt-6-astra", name: "Astra" }
+            ]
+        }]);
+        await mountChat();
+        await act(async () => {
+            api().loadFromContent({
+                version: 1, messages: [], selectedModel: "gpt-5.6-luna",
+                selectedProvider: "openai", selectedProviderId: "o_1", reasoningEffort: "none"
+            });
+        });
+        expect(api().reasoningEffort).toBe("none");
+        await act(async () => {
+            api().setSelectedModel("gpt-6-astra", "openai", "o_1");
+        });
+        expect(api().reasoningEffort).toBe("medium");
+        await act(async () => {
+            api().setReasoningEffort("ultra");
+        });
+        const saved = JSON.parse(JSON.stringify(api().getContent()));
+        expect(saved.reasoningEffort).toBe("ultra");
+        await act(async () => {
+            api().loadFromContent(saved);
+            api().setInput("hello");
+        });
+        await act(async () => {
+            await api().handleSubmit(new Event("submit"));
+        });
+        expect(streamChatCompletionMock.mock.calls[0][1]).toMatchObject({
+            model: "gpt-6-astra", provider: "openai", providerId: "o_1", reasoningEffort: "ultra"
+        });
+    });
+
     it("restores and sends the chat's reasoning effort without using extended thinking", async () => {
         await mountChat({ supportsExtendedThinking: true });
         await act(async () => {

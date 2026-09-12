@@ -1,4 +1,4 @@
-import type { LlmModelInfo } from "@triliumnext/commons";
+import { enrichOpenAiModel, type LlmModelInfo } from "@triliumnext/commons";
 
 import { formatModelCost } from "./llm_model_cost.js";
 import options from "./options.js";
@@ -38,7 +38,7 @@ export function readSelectedModels(): { models: ModelOption[]; groups: ModelProv
         name: config.name,
         provider: config.provider,
         models: (config.selectedModels ?? []).map(model => ({
-            ...model,
+            ...(config.provider === "openai" ? enrichOpenAiModel(model) : model),
             provider: config.provider,
             providerId: config.id,
             providerName: config.name,

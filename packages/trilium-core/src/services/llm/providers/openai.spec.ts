@@ -164,6 +164,29 @@ describe("OpenAiProvider chat", () => {
             .not.toHaveProperty("store");
     });
 
+    it.each(["gpt-6", "gpt-6-astra"])("forwards %s effort alongside stateless options and Web Search", (model) => {
+        const provider = new OpenAiProvider("sk-test", "https://sub2.invalid/v1", true);
+        provider.chat([{ role: "user", content: "hi" }], {
+            model,
+            reasoningEffort: "ultra",
+            enableWebSearch: true
+        });
+        expect(streamTextMock.mock.calls[0][0]).toMatchObject({
+            providerOptions: {
+                openai: { reasoningEffort: "ultra", store: false, include: ["reasoning.encrypted_content"] }
+            },
+            tools: { web_search: { kind: "web_search" } }
+        });
+    });
+
+    it.each(["none", "minimal", "invalid"])("does not forward unsupported GPT-6 effort %s", (reasoningEffort) => {
+        new OpenAiProvider("sk-test").chat([{ role: "user", content: "hi" }], {
+            model: "gpt-6-astra",
+            reasoningEffort
+        });
+        expect(streamTextMock.mock.calls[0][0]).not.toHaveProperty("providerOptions");
+    });
+
     it("does not guess reasoning support for an unknown OpenAI model", () => {
         const provider = new OpenAiProvider("sk-test");
         provider.chat([{ role: "user", content: "hi" }], {
@@ -326,6 +349,24 @@ describe("OpenAiProvider model listing", () => {
             supportedReasoningEfforts: ["none", "low", "medium", "high", "xhigh", "max"],
             defaultReasoningEffort: "medium"
         });
+    });
+
+    it("enriches remote-only GPT-6 models on fresh and cached reads without inventing prices", async () => {
+        fetchMock.mockResolvedValue(okJson({ data: [{ id: "gpt-6" }, { id: "gpt-6-astra" }] }));
+        const provider = new OpenAiProvider("sk-test", "https://sub2.invalid/v1");
+        for (let read = 0; read < 2; read++) {
+            const models = await provider.listModels();
+            expect(models.map(model => model.id)).toEqual(["gpt-6", "gpt-6-astra"]);
+            for (const model of models) {
+                expect(model).toMatchObject({
+                    supportedReasoningEfforts: ["low", "medium", "high", "xhigh", "max", "ultra"],
+                    defaultReasoningEffort: "medium"
+                });
+                expect(model.pricing).toBeUndefined();
+                expect(model.contextWindow).toBeUndefined();
+            }
+        }
+        expect(fetchMock).toHaveBeenCalledOnce();
     });
 
     it("filters non-chat models, drops dated snapshots, and names unknown models", async () => {
