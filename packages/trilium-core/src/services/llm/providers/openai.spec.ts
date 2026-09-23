@@ -164,7 +164,7 @@ describe("OpenAiProvider chat", () => {
             .not.toHaveProperty("store");
     });
 
-    it.each(["gpt-6", "gpt-6-astra"])("forwards %s effort alongside stateless options and Web Search", (model) => {
+    it.each(["gpt-6", "gpt-6-astra", "gpt-6-sol", "gpt-6-luna"])("forwards %s effort alongside stateless options and Web Search", (model) => {
         const provider = new OpenAiProvider("sk-test", "https://sub2.invalid/v1", true);
         provider.chat([{ role: "user", content: "hi" }], {
             model,
@@ -179,12 +179,22 @@ describe("OpenAiProvider chat", () => {
         });
     });
 
-    it.each(["none", "ultra", "invalid"])("does not forward unsupported GPT-6 effort %s", (reasoningEffort) => {
+    it.each(["none", "minimal", "ultra", "invalid"])("does not forward unsupported GPT-6 Astra effort %s", (reasoningEffort) => {
         new OpenAiProvider("sk-test").chat([{ role: "user", content: "hi" }], {
             model: "gpt-6-astra",
             reasoningEffort
         });
         expect(streamTextMock.mock.calls[0][0]).not.toHaveProperty("providerOptions");
+    });
+
+    it.each(["gpt-6-sol", "gpt-6-luna"])("forwards none for %s", (model) => {
+        new OpenAiProvider("sk-test").chat([{ role: "user", content: "hi" }], {
+            model,
+            reasoningEffort: "none"
+        });
+        expect(streamTextMock.mock.calls[0][0]).toMatchObject({
+            providerOptions: { openai: { reasoningEffort: "none" } }
+        });
     });
 
     it("does not guess reasoning support for an unknown OpenAI model", () => {
@@ -352,14 +362,16 @@ describe("OpenAiProvider model listing", () => {
     });
 
     it("enriches remote-only GPT-6 models on fresh and cached reads without inventing prices", async () => {
-        fetchMock.mockResolvedValue(okJson({ data: [{ id: "gpt-6" }, { id: "gpt-6-astra" }] }));
+        fetchMock.mockResolvedValue(okJson({ data: [{ id: "gpt-6" }, { id: "gpt-6-astra" }, { id: "gpt-6-sol" }, { id: "gpt-6-luna" }] }));
         const provider = new OpenAiProvider("sk-test", "https://sub2.invalid/v1");
         for (let read = 0; read < 2; read++) {
             const models = await provider.listModels();
-            expect(models.map(model => model.id)).toEqual(["gpt-6", "gpt-6-astra"]);
+            expect(models.map(model => model.id)).toEqual(["gpt-6", "gpt-6-astra", "gpt-6-luna", "gpt-6-sol"]);
             for (const model of models) {
                 expect(model).toMatchObject({
-                    supportedReasoningEfforts: ["minimal", "low", "medium", "high", "xhigh", "max"],
+                    supportedReasoningEfforts: model.id === "gpt-6-sol" || model.id === "gpt-6-luna"
+                        ? ["none", "low", "medium", "high", "xhigh", "max"]
+                        : ["low", "medium", "high", "xhigh", "max"],
                     defaultReasoningEffort: "medium"
                 });
                 expect(model.pricing).toBeUndefined();

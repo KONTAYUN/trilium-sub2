@@ -13,17 +13,25 @@ describe("saved OpenAI model capabilities", () => {
         const configs = [{
             id: "relay", name: "My relay", provider: "openai", selectedModels: [
                 { id: "gpt-6", name: "GPT-6", contextWindow: 12345, pricing: { input: 1, output: 2 } },
-                { id: "gpt-6-astra", name: "Astra", supportedReasoningEfforts: ["ultra"], defaultReasoningEffort: "ultra" }
+                { id: "gpt-6-astra", name: "Astra", supportedReasoningEfforts: ["ultra"], defaultReasoningEffort: "ultra" },
+                { id: "gpt-6-sol", name: "Sol" },
+                { id: "gpt-6-luna", name: "Luna" }
             ]
         }];
         const original = JSON.stringify(configs);
         getJson.mockReturnValue(configs);
         const { models, groups } = readSelectedModels();
-        expect(models).toHaveLength(2);
-        for (const model of models) {
+        expect(models).toHaveLength(4);
+        for (const model of models.slice(0, 2)) {
             expect(model).toMatchObject({
                 provider: "openai", providerId: "relay", providerName: "My relay",
-                supportedReasoningEfforts: ["minimal", "low", "medium", "high", "xhigh", "max"],
+                supportedReasoningEfforts: ["low", "medium", "high", "xhigh", "max"],
+                defaultReasoningEffort: "medium"
+            });
+        }
+        for (const model of models.slice(2)) {
+            expect(model).toMatchObject({
+                supportedReasoningEfforts: ["none", "low", "medium", "high", "xhigh", "max"],
                 defaultReasoningEffort: "medium"
             });
         }

@@ -14,10 +14,16 @@ describe("OpenAI model capabilities", () => {
         expect(getOpenAiModelCapabilities("gpt-5.6-luna-max")).toBeUndefined();
     });
 
-    it("recognizes exact GPT-6 IDs without guessing relay aliases or variants", () => {
+    it("recognizes exact GPT-6 IDs with their model-specific efforts", () => {
         for (const modelId of ["gpt-6", "gpt-6-astra"]) {
             expect(getOpenAiModelCapabilities(modelId)).toEqual({
-                supportedReasoningEfforts: ["minimal", "low", "medium", "high", "xhigh", "max"],
+                supportedReasoningEfforts: ["low", "medium", "high", "xhigh", "max"],
+                defaultReasoningEffort: "medium"
+            });
+        }
+        for (const modelId of ["gpt-6-sol", "gpt-6-luna"]) {
+            expect(getOpenAiModelCapabilities(modelId)).toEqual({
+                supportedReasoningEfforts: ["none", "low", "medium", "high", "xhigh", "max"],
                 defaultReasoningEffort: "medium"
             });
         }
@@ -26,11 +32,11 @@ describe("OpenAI model capabilities", () => {
         }
     });
 
-    it("keeps GPT-6 efforts within the Responses API enum", () => {
+    it("excludes unsupported Astra efforts", () => {
         expect(getOpenAiModelCapabilities("gpt-6-astra")?.supportedReasoningEfforts)
-            .toEqual(["minimal", "low", "medium", "high", "xhigh", "max"]);
+            .toEqual(["low", "medium", "high", "xhigh", "max"]);
         expect(getOpenAiModelCapabilities("gpt-6-astra")?.supportedReasoningEfforts)
-            .not.toContain("ultra");
+            .not.toContain("minimal");
     });
 
     it("enriches without replacing price/context metadata or mutating the source", () => {
