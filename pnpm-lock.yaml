@@ -15,7 +15,8 @@ overrides:
   '@lezer/common': 1.5.2
   '@lezer/highlight': 1.2.3
   '@lezer/lr': 1.4.10
-  '@ai-sdk/provider-utils': 5.0.27
+  '@ai-sdk/provider': 4.0.17
+  '@ai-sdk/provider-utils': 5.0.45
   mermaid: 11.16.1
   preact: 10.29.8
   roughjs: 4.6.6
@@ -595,8 +596,8 @@ importers:
         specifier: 4.0.44
         version: 4.0.44(zod@4.4.3)
       '@ai-sdk/openai':
-        specifier: https://github.com/KONTAYUN/ai/releases/download/openai-web-search-replay-v4.0.42-r2/ai-sdk-openai-4.0.42-web-search-replay-r2.tgz
-        version: https://github.com/KONTAYUN/ai/releases/download/openai-web-search-replay-v4.0.42-r2/ai-sdk-openai-4.0.42-web-search-replay-r2.tgz(zod@4.4.3)
+        specifier: https://github.com/KONTAYUN/ai/releases/download/openai-web-search-replay-v4.0.71-r2/ai-sdk-openai-4.0.71.tgz
+        version: https://github.com/KONTAYUN/ai/releases/download/openai-web-search-replay-v4.0.71-r2/ai-sdk-openai-4.0.71.tgz(zod@4.4.3)
       '@anthropic-ai/claude-agent-sdk':
         specifier: ^0.3.207
         version: 0.3.233(@anthropic-ai/sdk@0.111.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.30.0(supports-color@10.2.2)(zod@4.4.3))(zod@4.4.3)
@@ -1384,8 +1385,8 @@ importers:
         specifier: 4.0.44
         version: 4.0.44(zod@4.4.3)
       '@ai-sdk/openai':
-        specifier: https://github.com/KONTAYUN/ai/releases/download/openai-web-search-replay-v4.0.42-r2/ai-sdk-openai-4.0.42-web-search-replay-r2.tgz
-        version: https://github.com/KONTAYUN/ai/releases/download/openai-web-search-replay-v4.0.42-r2/ai-sdk-openai-4.0.42-web-search-replay-r2.tgz(zod@4.4.3)
+        specifier: https://github.com/KONTAYUN/ai/releases/download/openai-web-search-replay-v4.0.71-r2/ai-sdk-openai-4.0.71.tgz
+        version: https://github.com/KONTAYUN/ai/releases/download/openai-web-search-replay-v4.0.71-r2/ai-sdk-openai-4.0.71.tgz(zod@4.4.3)
       '@braintree/sanitize-url':
         specifier: 7.1.2
         version: 7.1.2
@@ -1531,21 +1532,21 @@ packages:
     peerDependencies:
       zod: '>=4.0.0'
 
-  '@ai-sdk/openai@https://github.com/KONTAYUN/ai/releases/download/openai-web-search-replay-v4.0.42-r2/ai-sdk-openai-4.0.42-web-search-replay-r2.tgz':
-    resolution: {integrity: sha512-1mBKWV6qz2tenJGZ9YltJoVS2voOyty+R7KfThe2HZgA/BuO+GcSO5W7Me9+E3KRLG9f4YpQVMjCyS34pmJt5A==, tarball: https://github.com/KONTAYUN/ai/releases/download/openai-web-search-replay-v4.0.42-r2/ai-sdk-openai-4.0.42-web-search-replay-r2.tgz}
-    version: 4.0.42
+  '@ai-sdk/openai@https://github.com/KONTAYUN/ai/releases/download/openai-web-search-replay-v4.0.71-r2/ai-sdk-openai-4.0.71.tgz':
+    resolution: {integrity: sha512-heLyXcpM2k/P4AbzM7c/QLDSmi6EcijqhAg7bxnEbxXVorKcyllnDSxrm8BdhjIHl88D0BpxfWtk8Hg3PR6n8g==, tarball: https://github.com/KONTAYUN/ai/releases/download/openai-web-search-replay-v4.0.71-r2/ai-sdk-openai-4.0.71.tgz}
+    version: 4.0.71
     engines: {node: '>=22'}
     peerDependencies:
       zod: '>=4.0.0'
 
-  '@ai-sdk/provider-utils@5.0.27':
-    resolution: {integrity: sha512-EzAn4pdgG5g0xXtH6lE2zyNmfjDQIDjATkfqzuidEI35g++hh4+07vnjzkT/RmGmIClPZiRj/Q2GMPV2V7mkHw==}
+  '@ai-sdk/provider-utils@5.0.45':
+    resolution: {integrity: sha512-gLuaCups8OCIRz3eO6WWz5op7VLYNNtFzyH0sWUr0FE9v7cTxR0qxDpQdrKnGcql+9WWttobjnZsJVsuEbsPQQ==}
     engines: {node: '>=22'}
     peerDependencies:
       zod: '>=4.0.0'
 
-  '@ai-sdk/provider@4.0.7':
-    resolution: {integrity: sha512-6or44XprPzKbr8zkmzosowSE0pxkvJcoojBL+mCZvPUt3kvXp3XSNqeVun9golb1acEfSo6yaEBRT18h2VU+1Q==}
+  '@ai-sdk/provider@4.0.17':
+    resolution: {integrity: sha512-VYMBxIQdcHqbIf1j+YZlI9Ati6LZ4wJe0GGd4z4a5H/KxTggjeOiyaVYTnfF7LHZK5jMQ+rofmzz4QPqf++NUw==}
     engines: {node: '>=22'}
 
   '@aklinker1/rollup-plugin-visualizer@5.12.0':
@@ -11749,6 +11750,10 @@ packages:
     resolution: {integrity: sha512-cRZYrTDwWznlnRiPjggAGxZXanty6M8RV1ff8Wm4LWXBp7/IG8v5DnOm74DtUBp9OONpK75YlPnIjQqX0dBDtA==}
     engines: {node: '>=20.18.1'}
 
+  undici@7.30.0:
+    resolution: {integrity: sha512-dkrQXeHSaoamnItlYbmzG0wFYrM0ZwDxCIg0A7aKjTyyhh9svRzCNFEzV+Vm05/yehjCzjDZ31KXfGEjYSztDQ==}
+    engines: {node: '>=20.18.1'}
+
   undici@8.9.0:
     resolution: {integrity: sha512-aWZpUj7XoGonMClx4gdDRfgBjqeA+F473aDmROQQbM9n6PRfK/u1q/a0X4wMTgcHfT8H6fpbt98PFuDUwFg2YA==}
     engines: {node: '>=22.19.0'}
@@ -12477,39 +12482,39 @@ snapshots:
 
   '@ai-sdk/anthropic@4.0.39(zod@4.4.3)':
     dependencies:
-      '@ai-sdk/provider': 4.0.7
-      '@ai-sdk/provider-utils': 5.0.27(zod@4.4.3)
+      '@ai-sdk/provider': 4.0.17
+      '@ai-sdk/provider-utils': 5.0.45(zod@4.4.3)
       zod: 4.4.3
 
   '@ai-sdk/gateway@4.0.52(zod@4.4.3)':
     dependencies:
-      '@ai-sdk/provider': 4.0.7
-      '@ai-sdk/provider-utils': 5.0.27(zod@4.4.3)
+      '@ai-sdk/provider': 4.0.17
+      '@ai-sdk/provider-utils': 5.0.45(zod@4.4.3)
       '@vercel/oidc': 3.2.0
       zod: 4.4.3
 
   '@ai-sdk/google@4.0.44(zod@4.4.3)':
     dependencies:
-      '@ai-sdk/provider': 4.0.7
-      '@ai-sdk/provider-utils': 5.0.27(zod@4.4.3)
+      '@ai-sdk/provider': 4.0.17
+      '@ai-sdk/provider-utils': 5.0.45(zod@4.4.3)
       zod: 4.4.3
 
-  '@ai-sdk/openai@https://github.com/KONTAYUN/ai/releases/download/openai-web-search-replay-v4.0.42-r2/ai-sdk-openai-4.0.42-web-search-replay-r2.tgz(zod@4.4.3)':
+  '@ai-sdk/openai@https://github.com/KONTAYUN/ai/releases/download/openai-web-search-replay-v4.0.71-r2/ai-sdk-openai-4.0.71.tgz(zod@4.4.3)':
     dependencies:
-      '@ai-sdk/provider': 4.0.7
-      '@ai-sdk/provider-utils': 5.0.27(zod@4.4.3)
+      '@ai-sdk/provider': 4.0.17
+      '@ai-sdk/provider-utils': 5.0.45(zod@4.4.3)
       zod: 4.4.3
 
-  '@ai-sdk/provider-utils@5.0.27(zod@4.4.3)':
+  '@ai-sdk/provider-utils@5.0.45(zod@4.4.3)':
     dependencies:
-      '@ai-sdk/provider': 4.0.7
+      '@ai-sdk/provider': 4.0.17
       '@standard-schema/spec': 1.1.0
       '@workflow/serde': 4.1.0
       eventsource-parser: 3.1.0
-      undici: 7.28.0
+      undici: 7.30.0
       zod: 4.4.3
 
-  '@ai-sdk/provider@4.0.7':
+  '@ai-sdk/provider@4.0.17':
     dependencies:
       json-schema: 0.4.0
 
@@ -18717,8 +18722,8 @@ snapshots:
   ai@7.0.66(zod@4.4.3):
     dependencies:
       '@ai-sdk/gateway': 4.0.52(zod@4.4.3)
-      '@ai-sdk/provider': 4.0.7
-      '@ai-sdk/provider-utils': 5.0.27(zod@4.4.3)
+      '@ai-sdk/provider': 4.0.17
+      '@ai-sdk/provider-utils': 5.0.45(zod@4.4.3)
       zod: 4.4.3
 
   ajv-formats@2.1.1(ajv@8.20.0):
@@ -25477,7 +25482,10 @@ snapshots:
 
   undici@7.25.0: {}
 
-  undici@7.28.0: {}
+  undici@7.28.0:
+    optional: true
+
+  undici@7.30.0: {}
 
   undici@8.9.0: {}
 

@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 const SCRIPT_PATH = fileURLToPath(new URL("./openai-patch-guard.mts", import.meta.url));
-const PATCHED_TGZ = "https://github.com/KONTAYUN/ai/releases/download/openai-web-search-replay-v4.0.42-r2/ai-sdk-openai-4.0.42-web-search-replay-r2.tgz";
+const PATCHED_TGZ = "https://github.com/KONTAYUN/ai/releases/download/openai-web-search-replay-v4.0.71-r2/ai-sdk-openai-4.0.71.tgz";
 const MANIFEST_PATHS = [
     "apps/server/package.json",
     "packages/trilium-core/package.json"
@@ -48,7 +48,7 @@ beforeAll(() => {
     git("config", "user.name", "Patch Guard Test");
     git("config", "user.email", "patch-guard@example.invalid");
 
-    writeManifests("4.0.42");
+    writeManifests("4.0.71");
     git("add", ".");
     git("commit", "--quiet", "-m", "validated upstream");
     git("tag", "validated");
@@ -64,12 +64,12 @@ afterAll(() => {
 });
 
 describe("OpenAI patched SDK upstream guard", () => {
-    it("accepts an upstream ref that still declares 4.0.42", () => {
+    it("accepts an upstream ref that still declares 4.0.71", () => {
         const result = runGuard("check-upstream", "validated");
 
         expect(result.status).toBe(0);
         expect(result.stdout).toContain(
-            "Upstream @ai-sdk/openai remains at validated version 4.0.42"
+            "Upstream @ai-sdk/openai remains at validated version 4.0.71"
         );
     });
 
@@ -79,7 +79,7 @@ describe("OpenAI patched SDK upstream guard", () => {
 
         expect(result.status).toBe(1);
         expect(stderr).toContain([
-            "Upstream @ai-sdk/openai changed from validated version 4.0.42 to 4.0.43.",
+            "Upstream @ai-sdk/openai changed from validated version 4.0.71 to 4.0.43.",
             "Patched SDK compatibility requires manual review.",
             "Automatic release aborted."
         ].join("\n"));

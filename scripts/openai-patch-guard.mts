@@ -5,10 +5,10 @@ import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-export const VALIDATED_OPENAI_VERSION = "4.0.42";
-export const PATCHED_OPENAI_TGZ = "https://github.com/KONTAYUN/ai/releases/download/openai-web-search-replay-v4.0.42-r2/ai-sdk-openai-4.0.42-web-search-replay-r2.tgz";
-export const PATCHED_OPENAI_SHA256 = "c1ff615dd37ea06101773f0f848e2a06072fd505336e70d905bd54f6d1a3df19";
-const PATCHED_OPENAI_INTEGRITY = "sha512-1mBKWV6qz2tenJGZ9YltJoVS2voOyty+R7KfThe2HZgA/BuO+GcSO5W7Me9+E3KRLG9f4YpQVMjCyS34pmJt5A==";
+export const VALIDATED_OPENAI_VERSION = "4.0.71";
+export const PATCHED_OPENAI_TGZ = "https://github.com/KONTAYUN/ai/releases/download/openai-web-search-replay-v4.0.71-r2/ai-sdk-openai-4.0.71.tgz";
+export const PATCHED_OPENAI_SHA256 = "51581be1352ee036db0ec04eee181eca60fe29fae122e1a908d1d2cc4d99c3cf";
+const PATCHED_OPENAI_INTEGRITY = "sha512-heLyXcpM2k/P4AbzM7c/QLDSmi6EcijqhAg7bxnEbxXVorKcyllnDSxrm8BdhjIHl88D0BpxfWtk8Hg3PR6n8g==";
 
 const OPENAI_PACKAGE = "@ai-sdk/openai";
 const MANIFEST_PATHS = [

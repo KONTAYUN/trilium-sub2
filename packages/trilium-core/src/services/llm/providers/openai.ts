@@ -47,7 +47,7 @@ export class OpenAiProvider extends BaseProvider {
         const options: OpenAILanguageModelResponsesOptions = {};
         if (this.statelessResponses) {
             options.store = false;
-            // Supported explicitly by @ai-sdk/openai 4.0.42. The SDK de-duplicates
+            // Supported explicitly by @ai-sdk/openai 4.0.71. The SDK de-duplicates
             // this with its model-name-based automatic include.
             options.include = [ "reasoning.encrypted_content" ];
         }

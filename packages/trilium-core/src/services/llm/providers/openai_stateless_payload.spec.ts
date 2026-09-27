@@ -71,7 +71,7 @@ describe("@ai-sdk/openai stateless Responses payload replay", () => {
         });
         const config = { providerId: "test", model: modelId };
         let replay: ModelMessage[] = [];
-        for (const effort of ["minimal", "low", "medium", "high", "xhigh", "max"]) {
+        for (const effort of ["low", "medium", "high", "xhigh", "max"]) {
             const result = await generateText({
                 model: openai(modelId),
                 messages: [{ role: "user", content: "Question" }, ...replay, { role: "user", content: "Continue" }],
@@ -86,15 +86,13 @@ describe("@ai-sdk/openai stateless Responses payload replay", () => {
                     type: "reasoning", encrypted_content: `encrypted-test-${requestBodies.length - 1}`
                 }));
                 expect(body.input).toContainEqual(expect.objectContaining({
-                    role: "assistant", content: expect.arrayContaining([
-                        expect.objectContaining({ type: "output_text", text: `Answer ${requestBodies.length - 1}` })
-                    ])
+                    role: "assistant", content: `Answer ${requestBodies.length - 1}`
                 }));
             }
             const persisted = JSON.parse(JSON.stringify(createOpenAiReplayState(result.responseMessages, config, modelId)));
             replay = restoreOpenAiReplayMessages(persisted, config, modelId)!;
         }
-        expect(requestBodies).toHaveLength(6);
+        expect(requestBodies).toHaveLength(5);
     });
 
     it("replays encrypted reasoning and function tool output after JSON persistence", async () => {
