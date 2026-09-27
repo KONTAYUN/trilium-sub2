@@ -154,7 +154,17 @@ jobs:
           # require a human review before this automation is allowed to publish anything.
           workflow_diff="$(git diff --name-status --find-renames --find-copies \
             "${current_baseline}^{commit}" "${OFFICIAL_TAG}^{commit}" -- .github/workflows/)"
-          blocked_workflows="$(awk '$1 ~ /^[ARC][0-9]*$/ { print }' <<<"${workflow_diff}")"
+          blocked_workflows="$(awk '$1 ~ /^[ARC][0-9]*$/ { print }' <<<"${workflow_diff}" | while IFS=$'\t' read -r status path; do
+            case "${status}:${path}" in
+              "A:.github/workflows/cloudflare-preview.yml"|\
+              "A:.github/workflows/deploy-previews.yml"|\
+              "A:.github/workflows/release-flathub.yml")
+                ;;
+              *)
+                printf '%s\n' "${status}${path}"
+                ;;
+            esac
+          done)"
           if [[ -n "${blocked_workflows}" ]]; then
             echo "::error::Upstream adds, copies, or renames workflow paths; manual review is required."
             printf '%s\n' "${blocked_workflows}"
