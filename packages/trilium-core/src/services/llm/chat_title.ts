@@ -42,11 +42,11 @@ export async function generateChatTitle(
     }
 
     // Stateless OpenAI opts into the current model. Every other mode deliberately
-    // falls through to v0.105.0's upstream behavior: whichever provider is first.
+    // falls through to the upstream behavior: whichever provider is first.
     const currentModelTitleGenerator = currentProvider.useCurrentModelForTitle
         ? currentProvider.generateTitleForCurrentModel
         : undefined;
-    const provider = currentModelTitleGenerator ? currentProvider : getProvider();
+    const provider = currentModelTitleGenerator ? currentProvider : await getProvider();
     log.info(currentModelTitleGenerator
         ? `Naming chat note ${chatNoteId} with ${provider.name}/${modelId}.`
         : `Naming chat note ${chatNoteId} with the ${provider.name} provider.`);

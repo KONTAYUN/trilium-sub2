@@ -48,17 +48,17 @@ const PROVIDER_TYPES = ["anthropic", "openai", "google", "deepseek", "claude-age
  * users who never chat, so the import specifiers are literals inside the
  * branches rather than at module scope.
  */
-function createProviderInstance(
+async function createProviderInstance(
     provider: string,
     apiKey: string,
     baseURL?: string,
     statelessResponses = false
-): LlmProvider {
+): Promise<LlmProvider> {
     switch (provider) {
         case "anthropic":
             return new (await import("./providers/anthropic.js")).AnthropicProvider(apiKey, baseURL);
         case "openai":
-            return new OpenAiProvider(apiKey, baseURL, statelessResponses);
+            return new (await import("./providers/openai.js")).OpenAiProvider(apiKey, baseURL, statelessResponses);
         case "google":
             return new (await import("./providers/google.js")).GoogleProvider(apiKey, baseURL);
         // OpenAI-compatible on the wire, but carded separately from the generic
@@ -142,7 +142,7 @@ export async function getProvider(providerId?: string): Promise<LlmProvider> {
     }
 
     // Create new provider instance
-    const provider = createProviderInstance(config.provider, config.apiKey, config.baseURL, config.statelessResponses);
+    const provider = await createProviderInstance(config.provider, config.apiKey, config.baseURL, config.statelessResponses);
     cachedProviders[config.id] = provider;
     return provider;
 }

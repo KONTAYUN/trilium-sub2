@@ -2,6 +2,7 @@ import type {
     LlmCitation,
     LlmErrorDetails,
     LlmProviderReplayState,
+    LlmReasoningEffort,
     LlmUsage
 } from "@triliumnext/commons";
 
@@ -181,6 +182,6 @@ export interface LlmChatContent {
     enableWebSearch?: boolean;
     enableNoteTools?: boolean;
     enableExtendedThinking?: boolean;
-    /** OpenAI reasoning effort selected for this chat, when supported by the active model. */
-    reasoningEffort?: string;
+    /** The effort chosen for a model with levels; absent means the model's default. */
+    reasoningEffort?: LlmReasoningEffort;
 }

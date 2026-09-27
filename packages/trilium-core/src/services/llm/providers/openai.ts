@@ -51,11 +51,11 @@ export class OpenAiProvider extends BaseProvider {
             // this with its model-name-based automatic include.
             options.include = [ "reasoning.encrypted_content" ];
         }
-
         const modelId = config?.model ?? this.defaultModel;
+        const effort = config?.reasoningEffort;
         const capabilities = getOpenAiModelCapabilities(modelId);
-        if (config?.reasoningEffort && capabilities?.supportedReasoningEfforts.includes(config.reasoningEffort)) {
-            options.reasoningEffort = config.reasoningEffort;
+        if (effort && capabilities?.supportedReasoningEfforts.includes(effort)) {
+            options.reasoningEffort = effort;
         }
 
         if (Object.keys(options).length === 0) {
@@ -120,7 +120,6 @@ export class OpenAiProvider extends BaseProvider {
     async generateTitleForCurrentModel(firstMessage: string, modelId: string): Promise<string> {
         return this.generateTitleWithModel(firstMessage, modelId);
     }
-
     override getAvailableModels(): ModelInfo[] {
         return enrichOpenAiModels(super.getAvailableModels());
     }

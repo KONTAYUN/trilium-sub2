@@ -40,6 +40,7 @@ function makeCallbacks(): Record<keyof StreamCallbacks, ReturnType<typeof vi.fn>
         onToolResult: vi.fn(),
         onCitation: vi.fn(),
         onUsage: vi.fn(),
+        onStatus: vi.fn(),
         onProviderReplay: vi.fn(),
         onError: vi.fn(),
         onDone: vi.fn()

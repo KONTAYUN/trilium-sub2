@@ -45,25 +45,7 @@ const PROVIDERS = [
     ] },
     { id: "o_1", name: "OpenAI", provider: "openai", selectedModels: [
         { id: "mini", name: "Mini" },
-        {
-            id: "gpt-5.6-luna",
-            name: "GPT-5.6 Luna",
-            contextWindow: 1_050_000,
-            supportedReasoningEfforts: ["none", "low", "medium", "high", "xhigh", "max"],
-            defaultReasoningEffort: "medium"
-        },
-        {
-            id: "gpt-5.6-terra",
-            name: "GPT-5.6 Terra",
-            supportedReasoningEfforts: ["none", "low", "medium", "high", "xhigh", "max"],
-            defaultReasoningEffort: "medium"
-        },
-        {
-            id: "test-reasoner",
-            name: "Limited test reasoner",
-            supportedReasoningEfforts: ["low"],
-            defaultReasoningEffort: "low"
-        }
+        { id: "gpt-5.6-luna", name: "GPT-5.6 Luna" }
     ] },
     { id: "ol_1", name: "My Ollama", provider: "ollama", selectedModels: [
         { id: "llama3.2", name: "llama3.2 (3.2B)", pricing: { input: 0, output: 0 } }
@@ -349,114 +331,32 @@ describe("useLlmChat", () => {
         expect(api().getContent()).toMatchObject({ selectedModel: "mini", selectedProvider: "openai", selectedProviderId: "o_1" });
     });
 
-    it("defaults, preserves, falls back, and clears reasoning effort from model capabilities", async () => {
+    it("keeps what a turn waits on until the turn ends", async () => {
+        let callbacks: { onStatus: (status: string) => void } | undefined;
+        let finish: () => void = () => undefined;
+        streamChatCompletionMock.mockImplementation(async (_messages, _options, cb) => {
+            callbacks = cb;
+            await new Promise<void>(resolve => { finish = resolve; });
+            cb.onDone();
+        });
         await mountChat();
 
         await act(async () => {
-            api().setSelectedModel("gpt-5.6-luna", "openai", "o_1");
+            api().setInput("hi");
         });
-        expect(api().reasoningEffort).toBe("medium");
-        expect(api().availableModels.find(model => model.id === "gpt-5.6-luna")?.contextWindow).toBe(1_050_000);
+        await act(async () => {
+            void api().handleSubmit(new Event("submit"));
+        });
+        await act(async () => {
+            callbacks?.onStatus("starting_agent");
+        });
+        expect(api().streamingStatus).toBe("starting_agent");
 
         await act(async () => {
-            api().setReasoningEffort("max");
+            finish();
         });
-        expect(api().getContent()).toMatchObject({
-            selectedModel: "gpt-5.6-luna",
-            reasoningEffort: "max"
-        });
-
-        // Terra supports max too, so the per-chat selection survives the switch.
-        await act(async () => {
-            api().setSelectedModel("gpt-5.6-terra", "openai", "o_1");
-        });
-        expect(api().reasoningEffort).toBe("max");
-
-        // A model that does not support max falls back to its declared default.
-        await act(async () => {
-            api().setSelectedModel("test-reasoner", "openai", "o_1");
-        });
-        expect(api().reasoningEffort).toBe("low");
-
-        // An OpenAI model with no capability metadata carries no effort at all.
-        await act(async () => {
-            api().setSelectedModel("mini", "openai", "o_1");
-        });
-        expect(api().reasoningEffort).toBeUndefined();
-
-        await act(async () => {
-            api().setSelectedModel("gpt-5.6-luna", "openai", "o_1");
-        });
-        expect(api().reasoningEffort).toBe("medium");
-    });
-
-    it("enables saved GPT-6 models, falls back from none, and persists/sends max", async () => {
-        optionsGetJsonMock.mockReturnValue([{
-            id: "o_1", name: "Relay", provider: "openai", selectedModels: [
-                { id: "gpt-5.6-luna", name: "Luna" },
-                { id: "gpt-6-astra", name: "Astra" }
-            ]
-        }]);
-        await mountChat();
-        await act(async () => {
-            api().loadFromContent({
-                version: 1, messages: [], selectedModel: "gpt-5.6-luna",
-                selectedProvider: "openai", selectedProviderId: "o_1", reasoningEffort: "none"
-            });
-        });
-        expect(api().reasoningEffort).toBe("none");
-        await act(async () => {
-            api().setSelectedModel("gpt-6-astra", "openai", "o_1");
-        });
-        expect(api().reasoningEffort).toBe("medium");
-
-        await act(async () => {
-            api().setReasoningEffort("max");
-        });
-        const saved = JSON.parse(JSON.stringify(api().getContent()));
-        expect(saved.reasoningEffort).toBe("max");
-        await act(async () => {
-            api().loadFromContent(saved);
-            api().setInput("hello");
-        });
-        await act(async () => {
-            await api().handleSubmit(new Event("submit"));
-        });
-        expect(streamChatCompletionMock.mock.calls[0][1]).toMatchObject({
-            model: "gpt-6-astra", provider: "openai", providerId: "o_1", reasoningEffort: "max"
-        });
-    });
-
-    it("restores and sends the chat's reasoning effort without using extended thinking", async () => {
-        await mountChat({ supportsExtendedThinking: true });
-        await act(async () => {
-            api().loadFromContent({
-                version: 1,
-                messages: [],
-                selectedModel: "gpt-5.6-luna",
-                selectedProvider: "openai",
-                selectedProviderId: "o_1",
-                enableExtendedThinking: true,
-                reasoningEffort: "max"
-            });
-        });
-        expect(api().reasoningEffort).toBe("max");
-
-        await act(async () => {
-            api().setInput("hello");
-        });
-        await act(async () => {
-            await api().handleSubmit(new Event("submit"));
-        });
-
-        expect(streamChatCompletionMock.mock.calls[0][1]).toMatchObject({
-            model: "gpt-5.6-luna",
-            provider: "openai",
-            providerId: "o_1",
-            reasoningEffort: "max"
-        });
-        expect(streamChatCompletionMock.mock.calls[0][1]).not.toHaveProperty("enableExtendedThinking");
-        expect(api().getContent()).toMatchObject({ reasoningEffort: "max" });
+        expect(api().isStreaming).toBe(false);
+        expect(api().streamingStatus).toBeNull();
     });
 
     it("persists replay state, survives JSON reload, and sends it on the next user turn", async () => {

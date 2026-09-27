@@ -6,6 +6,7 @@ import type {
     LlmModelInfo,
     LlmProviderReplayState,
     LlmStreamChunk,
+    LlmStreamStatus,
     LlmUsage,
     WebSocketMessage
 } from "@triliumnext/commons";
@@ -68,6 +69,8 @@ export interface StreamCallbacks {
     onToolResult?: (toolCallId: string, toolName: string, result: string, isError?: boolean) => void;
     onCitation?: (citation: LlmCitation) => void;
     onUsage?: (usage: LlmUsage) => void;
+    /** What the turn waits on before its reply starts. */
+    onStatus?: (status: LlmStreamStatus) => void;
     /** Hidden provider continuation state, delivered once immediately before done. */
     onProviderReplay?: (state: LlmProviderReplayState) => void;
     /**

@@ -4,6 +4,8 @@ import type {
     LlmMessagePart,
     LlmModelInfo,
     LlmProviderReplayState,
+    LlmReasoningEffort,
+    LlmStreamStatus,
     LlmUsage
 } from "@triliumnext/commons";
 import { RefObject } from "preact";
@@ -37,20 +39,6 @@ const SCROLL_BOTTOM_THRESHOLD = 50;
 const REPLY_ANCHOR_TOP_FRACTION = 0.25;
 /** Duration (ms) of the smooth scroll that parks a new reply near the top. */
 const ANCHOR_SCROLL_DURATION_MS = 300;
-
-/** Keep a chat's effort when the new OpenAI model supports it, otherwise use that model's declared default. */
-export function reconcileReasoningEffort(model: ModelOption | undefined, currentEffort: string | undefined): string | undefined {
-    const supported = model?.provider === "openai" ? model.supportedReasoningEfforts : undefined;
-    if (!model || !supported?.length) {
-        return undefined;
-    }
-    if (currentEffort && supported.includes(currentEffort)) {
-        return currentEffort;
-    }
-    return model.defaultReasoningEffort && supported.includes(model.defaultReasoningEffort)
-        ? model.defaultReasoningEffort
-        : undefined;
-}
 
 /** The most recent user message element inside the scroll container, or null. */
 function getLastUserMessageEl(container: HTMLElement): HTMLElement | null {
@@ -173,8 +161,8 @@ export interface UseLlmChatReturn {
     enableWebSearch: boolean;
     enableNoteTools: boolean;
     enableExtendedThinking: boolean;
-    /** OpenAI reasoning effort selected for this chat, when the current model declares support. */
-    reasoningEffort: string | undefined;
+    /** The effort chosen for a model with levels; undefined means the model's default. */
+    reasoningEffort: LlmReasoningEffort | undefined;
     contextNoteId: string | undefined;
     /** The chat note's ID — used as the upload target for attachments. */
     chatNoteId: string | undefined;
@@ -211,7 +199,7 @@ export interface UseLlmChatReturn {
     setEnableWebSearch: (value: boolean) => void;
     setEnableNoteTools: (value: boolean) => void;
     setEnableExtendedThinking: (value: boolean) => void;
-    setReasoningEffort: (value: string | undefined) => void;
+    setReasoningEffort: (value: LlmReasoningEffort | undefined) => void;
     setContextNoteId: (noteId: string | undefined) => void;
     setChatNoteId: (noteId: string | undefined) => void;
     /** Append a freshly uploaded image or file to the pending-attachments list. */
@@ -276,7 +264,7 @@ export function useLlmChat(
     const [enableWebSearch, setEnableWebSearch] = useState(true);
     const [enableNoteTools, setEnableNoteTools] = useState(defaultEnableNoteTools);
     const [enableExtendedThinking, setEnableExtendedThinking] = useState(false);
-    const [reasoningEffort, setReasoningEffort] = useState<string | undefined>(undefined);
+    const [reasoningEffort, setReasoningEffort] = useState<LlmReasoningEffort | undefined>(undefined);
     const [contextNoteId, setContextNoteId] = useState<string | undefined>(initialContextNoteId);
     const [chatNoteId, setChatNoteIdState] = useState<string | undefined>(initialChatNoteId);
     const [lastPromptTokens, setLastPromptTokens] = useState<number>(0);
@@ -320,7 +308,7 @@ export function useLlmChat(
     enableExtendedThinkingRef.current = enableExtendedThinking;
     const reasoningEffortRef = useRef(reasoningEffort);
     reasoningEffortRef.current = reasoningEffort;
-    const setChatReasoningEffort = useCallback((value: string | undefined) => {
+    const setChatReasoningEffort = useCallback((value: LlmReasoningEffort | undefined) => {
         reasoningEffortRef.current = value;
         setReasoningEffort(value);
     }, []);
@@ -368,16 +356,10 @@ export function useLlmChat(
     // same model ID (e.g. an Anthropic API key and a Claude subscription both
     // offering "claude-sonnet-5", or two OpenAI-compatible endpoints).
     const selectModel = useCallback((model: string, provider?: string, providerId?: string) => {
-        selectedModelRef.current = model;
-        selectedProviderRef.current = provider;
-        selectedProviderIdRef.current = providerId;
         setSelectedModel(model);
         setSelectedProvider(provider);
         setSelectedProviderId(providerId);
-
-        const resolvedModel = resolveSelectedModel(availableModelsRef.current, model, provider, providerId);
-        setChatReasoningEffort(reconcileReasoningEffort(resolvedModel, reasoningEffortRef.current));
-    }, [setChatReasoningEffort]);
+    }, []);
 
     // Read the user's selected models straight from the synced `llmProviders`
     // option — no server round-trip, no live provider fetch. The models were
@@ -400,13 +382,6 @@ export function useLlmChat(
     useEffect(() => {
         refreshModels();
     }, []);
-
-    // Model capability metadata is the source of truth: preserve a compatible
-    // choice, otherwise fall back to the newly selected model's declared default.
-    useEffect(() => {
-        const model = resolveSelectedModel(availableModels, selectedModel, selectedProvider, selectedProviderId);
-        setChatReasoningEffort(reconcileReasoningEffort(model, reasoningEffortRef.current));
-    }, [availableModels, selectedModel, selectedProvider, selectedProviderId, setChatReasoningEffort]);
 
     // Re-fetch models when providers are (re)configured elsewhere — e.g. via the
     // settings page — so the chat picks up newly added providers and clears the
@@ -610,8 +585,7 @@ export function useLlmChat(
             selectedProvider: selectedProviderRef.current || undefined,
             selectedProviderId: selectedProviderIdRef.current || undefined,
             enableWebSearch: enableWebSearchRef.current,
-            enableNoteTools: enableNoteToolsRef.current,
-            reasoningEffort: reasoningEffortRef.current
+            enableNoteTools: enableNoteToolsRef.current
         };
         if (supportsExtendedThinking) {
             content.enableExtendedThinking = enableExtendedThinkingRef.current;
@@ -663,7 +637,8 @@ export function useLlmChat(
         // The fallback returns the first match, so it can pick the wrong provider
         // when two share a model ID — but such chats predate the subscription
         // provider entirely, so their IDs only ever match one provider.
-        const matchedModel = resolveSelectedModel(availableModels, selectedModel, selectedProvider, selectedProviderId);
+        const matchedModel = availableModels.find(m =>
+            m.id === selectedModel && (!selectedProvider || m.provider === selectedProvider));
         const selectedModelProvider = selectedProvider ?? matchedModel?.provider;
         const requestProviderId = selectedProviderId ?? matchedModel?.providerId;
         const apiMessages = buildApiMessages(conversation, {
@@ -682,12 +657,11 @@ export function useLlmChat(
             contextNoteId,
             chatNoteId: chatNoteIdRef.current
         };
-        if (supportsExtendedThinking && matchedModel?.provider !== "openai") {
+        if (supportsExtendedThinking) {
             streamOptions.enableExtendedThinking = enableExtendedThinking;
         }
-        const requestReasoningEffort = reconcileReasoningEffort(matchedModel, reasoningEffort);
-        if (requestReasoningEffort) {
-            streamOptions.reasoningEffort = requestReasoningEffort;
+        if (reasoningEffort && matchedModel?.reasoningEfforts?.length) {
+            streamOptions.reasoningEffort = reasoningEffort;
         }
 
         const abortController = new AbortController();
@@ -1058,7 +1032,7 @@ export function useLlmChat(
         setEnableWebSearch,
         setEnableNoteTools,
         setEnableExtendedThinking,
-        setReasoningEffort: setChatReasoningEffort,
+        setReasoningEffort,
         setContextNoteId,
         setChatNoteId,
         addPendingAttachment,

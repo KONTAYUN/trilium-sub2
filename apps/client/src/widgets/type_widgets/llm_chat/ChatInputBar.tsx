@@ -22,7 +22,7 @@ import { computeContextUsage } from "./chat_context_usage.js";
 import { insertNewBlock as insertNewBlockCommand, isSelectionInCodeBlock, outdentListItemAtStart } from "./chat_input_editing.js";
 import { editorHtmlToMarkdown } from "./chat_input_markdown.js";
 import { shortModelName } from "./model_name.js";
-import { reasoningControlForModel } from "./reasoning_control.js";
+import ReasoningEffortDropdown from "./ReasoningEffortDropdown.js";
 import { SafeImage } from "./retry_image.js";
 import { useChatAttachments } from "./useChatAttachments.js";
 import { type ModelOption, resolveSelectedModel } from "../../../services/llm_providers.js";
@@ -78,8 +78,6 @@ interface ChatInputBarProps {
     onNoteToolsChange?: () => void;
     /** Callback when the extended thinking switch or the reasoning effort changes */
     onExtendedThinkingChange?: () => void;
-    /** Callback when OpenAI reasoning effort changes */
-    onReasoningEffortChange?: () => void;
     /** Callback when model changes */
     onModelChange?: (model: string) => void;
     /** Rendered inside the narrow right sidebar — opens the model submenu leftwards so it doesn't overflow. */
@@ -94,7 +92,6 @@ export default function ChatInputBar({
     onWebSearchChange,
     onNoteToolsChange,
     onExtendedThinkingChange,
-    onReasoningEffortChange,
     onModelChange,
     inSidebar
 }: ChatInputBarProps) {
@@ -188,9 +185,9 @@ export default function ChatInputBar({
         onExtendedThinkingChange?.();
     };
 
-    const handleReasoningEffortSelect = (effort: string) => {
+    const handleReasoningEffortChange = (effort: LlmReasoningEffort) => {
         chat.setReasoningEffort(effort);
-        onReasoningEffortChange?.();
+        onExtendedThinkingChange?.();
     };
 
     const handleModelSelect = (model: ModelOption) => {
@@ -238,13 +235,6 @@ export default function ChatInputBar({
     // shows as selected is exactly what will be sent (see resolveSelectedModel).
     const currentModel = resolveSelectedModel(chat.availableModels, chat.selectedModel, chat.selectedProvider, chat.selectedProviderId);
     const isSelectedModel = (m: ModelOption) => m === currentModel;
-    const supportedReasoningEfforts = currentModel?.provider === "openai"
-        ? currentModel.supportedReasoningEfforts
-        : undefined;
-    const selectedReasoningEffort = chat.reasoningEffort && supportedReasoningEfforts?.includes(chat.reasoningEffort)
-        ? chat.reasoningEffort
-        : currentModel?.defaultReasoningEffort;
-    const reasoningControl = reasoningControlForModel(currentModel);
     // Gemini 2.x cannot combine googleSearch with function tools in a single
     // request. When note tools are enabled on a Gemini model we silently drop
     // web search server-side; reflect that here by disabling the toggle so the
@@ -519,17 +509,7 @@ export default function ChatInputBar({
                             onToggle={handleNoteToolsToggle}
                             disabled={chat.isStreaming}
                         />
-                        {reasoningControl === "effort" ? (
-                            supportedReasoningEfforts?.length ? (
-                                <ReasoningEffortSelector
-                                    efforts={supportedReasoningEfforts}
-                                    selected={selectedReasoningEffort}
-                                    onSelect={handleReasoningEffortSelect}
-                                    disabled={chat.isStreaming}
-                                    inSidebar={inSidebar}
-                                />
-                            ) : null
-                        ) : reasoningControl === "extended-thinking" ? (
+                        {!currentModel?.reasoningEfforts?.length && (
                             <CapabilityToggle
                                 icon="bx bx-brain"
                                 label={t("llm_chat.extended_thinking")}
@@ -537,7 +517,7 @@ export default function ChatInputBar({
                                 onToggle={handleExtendedThinkingToggle}
                                 disabled={chat.isStreaming}
                             />
-                        ) : null}
+                        )}
                     </div>
                     {/* The actions, boxed so they keep a fixed gap from the capabilities. The
                         row's `auto` spacer collapses to nothing once the row is full — which is
@@ -612,58 +592,6 @@ export default function ChatInputBar({
             />
         </>
     );
-}
-
-/** Compact OpenAI reasoning-effort picker occupying the existing brain-icon slot. */
-function ReasoningEffortSelector({ efforts, selected, onSelect, disabled, inSidebar }: {
-    efforts: string[];
-    selected: string | undefined;
-    onSelect: (effort: string) => void;
-    disabled?: boolean;
-    inSidebar?: boolean;
-}) {
-    const selectedLabel = selected ? reasoningEffortLabel(selected) : t("llm_chat.reasoning_effort");
-    const title = `${t("llm_chat.reasoning_effort")}: ${selectedLabel}`;
-
-    return (
-        <Dropdown
-            title={title}
-            titlePosition="top"
-            iconAction
-            hideToggleArrow
-            noSelectButtonStyle
-            disabled={disabled}
-            buttonClassName="llm-chat-capability llm-chat-reasoning-effort active bx bx-brain"
-            buttonProps={{ "aria-label": title }}
-            dropdownContainerClassName="llm-chat-reasoning-effort-menu"
-            portalToBody={inSidebar}
-            dropdownOptions={inSidebar ? { popperConfig: { strategy: "fixed" } } : undefined}
-        >
-            <FormListHeader text={t("llm_chat.reasoning_effort")} />
-            {efforts.map(effort => (
-                <FormListItem
-                    key={effort}
-                    checked={effort === selected}
-                    onClick={() => onSelect(effort)}
-                >
-                    {reasoningEffortLabel(effort)}
-                </FormListItem>
-            ))}
-        </Dropdown>
-    );
-}
-
-function reasoningEffortLabel(effort: string): string {
-    switch (effort) {
-        case "none": return t("llm_chat.reasoning_effort_none");
-        case "minimal": return t("llm_chat.reasoning_effort_minimal");
-        case "low": return t("llm_chat.reasoning_effort_low");
-        case "medium": return t("llm_chat.reasoning_effort_medium");
-        case "high": return t("llm_chat.reasoning_effort_high");
-        case "xhigh": return t("llm_chat.reasoning_effort_xhigh");
-        case "max": return t("llm_chat.reasoning_effort_max");
-        default: return effort;
-    }
 }
 
 /**

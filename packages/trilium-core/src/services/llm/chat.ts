@@ -13,6 +13,7 @@ import { getLog } from "../log.js";
 import { safeExtractMessageAndStackFromError } from "../utils/index.js";
 import { generateChatTitle } from "./chat_title.js";
 import { getProvider, getProviderByType, getSelectedModel, hasConfiguredProviders, type LlmProviderConfig } from "./index.js";
+import type { LlmProvider } from "./types.js";
 import { formatStreamError, streamToChunks } from "./stream.js";
 import { resolveToolRegistries } from "./tools/index.js";
 
@@ -113,7 +114,7 @@ export async function* runChat(
 async function generateTitleForFirstTurn(
     messages: LlmMessage[],
     config: LlmProviderConfig,
-    provider: ReturnType<typeof getProvider>,
+    provider: LlmProvider,
     modelId: string
 ): Promise<void> {
     const userMessages = messages.filter(m => m.role === "user");

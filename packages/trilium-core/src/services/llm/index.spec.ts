@@ -101,7 +101,7 @@ describe("llm/index provider registry", () => {
 
         it("returns the provider matching a given id", async () => {
             setProviders(TWO);
-            const p = getProvider("o1");
+            const p = await getProvider("o1");
             expect((p.constructor as any).lastArgs).toEqual(["k2", undefined, false]);
         });
 
@@ -116,9 +116,10 @@ describe("llm/index provider registry", () => {
                 { id: "lm", name: "LM", provider: "lmstudio", apiKey: "", baseURL: "http://box:1234/v1" },
                 { id: "oc", name: "OC", provider: "openai-compatible", apiKey: "k", baseURL: "http://box:8080/v1" }
             ]);
-            expect((getProvider("a").constructor as any).lastArgs).toEqual(["ka", undefined]);
-            expect((getProvider("o").constructor as any).lastArgs).toEqual(["ko", undefined, true]);
-            expect((getProvider("g").constructor as any).lastArgs).toEqual(["kg", undefined]);
+            const constructorArgs = async (id: string) => ((await getProvider(id)).constructor as any).lastArgs;
+            expect(await constructorArgs("a")).toEqual(["ka", undefined]);
+            expect(await constructorArgs("o")).toEqual(["ko", undefined, true]);
+            expect(await constructorArgs("g")).toEqual(["kg", undefined]);
             // Its own class rather than the shared self-hosted one, despite speaking
             // the same protocol — that is what gives its models a price.
             expect(await constructorArgs("d")).toEqual(["kd", undefined]);
@@ -204,7 +205,7 @@ describe("llm/index provider registry", () => {
     describe("getProviderByType", () => {
         it("returns the first provider of the given type", async () => {
             setProviders(TWO);
-            const p = getProviderByType("openai");
+            const p = await getProviderByType("openai");
             expect((p.constructor as any).lastArgs).toEqual(["k2", undefined, false]);
         });
 

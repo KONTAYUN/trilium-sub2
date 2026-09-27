@@ -46,6 +46,7 @@ export function enrichOpenAiModel<T extends { id: string }>(model: T): T & Parti
     return {
         ...model,
         supportedReasoningEfforts: [...capabilities.supportedReasoningEfforts],
+        reasoningEfforts: [...capabilities.supportedReasoningEfforts] as any,
         defaultReasoningEffort: capabilities.defaultReasoningEffort
     };
 }

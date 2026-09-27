@@ -458,13 +458,13 @@ describe("buildAiAssistantQuickActions", () => {
         // Ordered as the catalogue is — by native name — so the submenu reads the same way as the
         // language picker the list was configured in.
         expect(actions("translate").map((action) => [action.id, action.label, action.prompt])).toEqual([
-            ["translate:en-GB", "English (United Kingdom)", "Translate the content to English (United Kingdom)."],
-            ["translate:pt_br", "Português (Brasil)", "Translate the content to Brazilian Portuguese."],
-            ["translate:ar", "اَلْعَرَبِيَّةُ", "Translate the content to Arabic."],
-            ["translate:ja", "日本語", "Translate the content to Japanese."],
             // `zh-Hans`, not the `zh-CN` the locale maps to elsewhere: the pair differs by script,
             // so "Simplified Chinese" is the name that tells them apart and "Chinese (China)" is not.
-            ["translate:cn", "简体中文", "Translate the content to Simplified Chinese."]
+            ["translate:cn", "简体中文", "Translate the content to Simplified Chinese."],
+            ["translate:ja", "日本語", "Translate the content to Japanese."],
+            ["translate:en-GB", "English (United Kingdom)", "Translate the content to English (United Kingdom)."],
+            ["translate:pt_br", "Português (Brasil)", "Translate the content to Brazilian Portuguese."],
+            ["translate:ar", "اَلْعَرَبِيَّةُ", "Translate the content to Arabic."]
         ]);
     });
 
@@ -487,7 +487,7 @@ describe("buildAiAssistantQuickActions", () => {
         for (const empty of [null, []]) {
             storedLanguages = empty;
             expect(actions("translate").map((action) => action.id)).toEqual([
-                "translate:de", "translate:en", "translate:es", "translate:fr", "translate:ro", "translate:cn"
+                "translate:cn", "translate:de", "translate:en", "translate:es", "translate:fr", "translate:ro"
             ]);
         }
     });
@@ -570,7 +570,7 @@ describe("buildAiAssistantQuickActions", () => {
         expect([ ...reviewViews ].filter(([, view]) => view === "result").map(([id]) => id))
             .toEqual([
                 "summarize", "explain", "continue", "table", "diagram", "actionItems",
-                "translate:de", "translate:en", "translate:es", "translate:fr", "translate:ro", "translate:cn"
+                "translate:cn", "translate:de", "translate:en", "translate:es", "translate:fr", "translate:ro"
             ]);
         for (const id of ["fixTypos", "improveWriting", "makeShorter", "professional", "callout"]) {
             expect(reviewViews.get(id), id).toBeUndefined();

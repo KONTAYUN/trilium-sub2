@@ -8,6 +8,7 @@ import type {
     LlmChatConfig,
     LlmMessage,
     LlmProviderReplayState,
+    LlmReasoningEffort,
     LlmStreamChunk
 } from "@triliumnext/commons";
 import type { streamText } from "ai";
@@ -55,10 +56,6 @@ export interface ModelInfo {
     isDefault?: boolean;
     /** Maximum context window size in tokens */
     contextWindow?: number;
-    /** Reasoning effort values explicitly supported by this model. */
-    supportedReasoningEfforts?: string[];
-    /** Reasoning effort to select when a chat first switches to this model. */
-    defaultReasoningEffort?: string;
     /** Whether this is a legacy/older model */
     isLegacy?: boolean;
     /** Whether this model is pre-selected by default when adding a provider (e.g. excludes legacy and, for Gemini, preview models) */

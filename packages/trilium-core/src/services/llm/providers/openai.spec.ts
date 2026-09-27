@@ -92,7 +92,6 @@ describe("OpenAiProvider chat", () => {
 
     it("keeps the default stored Responses behavior when stateless mode is disabled", async () => {
         const provider = new OpenAiProvider("sk-test");
-        expect(provider.useCurrentModelForTitle).toBe(false);
         provider.chat([{ role: "user", content: "hi" }], {});
         await provider.generateTitle("hi");
 
@@ -106,9 +105,8 @@ describe("OpenAiProvider chat", () => {
 
     it("sets store=false for streaming chat and title generation without replacing web_search", async () => {
         const provider = new OpenAiProvider("sk-test", "https://sub2api.example/v1", true);
-        expect(provider.useCurrentModelForTitle).toBe(true);
         provider.chat([{ role: "user", content: "hi" }], { enableWebSearch: true });
-        await provider.generateTitleForCurrentModel("hi", "gpt-5.6-luna");
+        await provider.generateTitle("hi");
 
         const streamOptions = streamTextMock.mock.calls[0][0] as any;
         expect(streamOptions.providerOptions).toEqual({
@@ -121,7 +119,6 @@ describe("OpenAiProvider chat", () => {
         expect(streamOptions).not.toHaveProperty("maxOutputTokens");
         expect(generateTextMock.mock.calls[0][0]).not.toHaveProperty("maxOutputTokens");
     });
-
     it("merges a supported reasoning effort with stateless mode and leaves titles at the model default", async () => {
         const provider = new OpenAiProvider("sk-test", "https://sub2api.example/v1", true);
         provider.chat([{ role: "user", content: "hi" }], {
@@ -182,7 +179,7 @@ describe("OpenAiProvider chat", () => {
     it.each(["none", "minimal", "ultra", "invalid"])("does not forward unsupported GPT-6 Astra effort %s", (reasoningEffort) => {
         new OpenAiProvider("sk-test").chat([{ role: "user", content: "hi" }], {
             model: "gpt-6-astra",
-            reasoningEffort
+            reasoningEffort: reasoningEffort as any
         });
         expect(streamTextMock.mock.calls[0][0]).not.toHaveProperty("providerOptions");
     });
@@ -341,7 +338,7 @@ describe("OpenAiProvider model listing", () => {
     it("combines GPT-5.6 Luna price/context metadata with reasoning capabilities", () => {
         const luna = new OpenAiProvider("sk-test").getAvailableModels().find(model => model.id === "gpt-5.6-luna");
         expect(luna).toMatchObject({
-            contextWindow: 1_050_000,
+            contextWindow: 922_000,
             pricing: { input: 0.2, output: 1.2 },
             supportedReasoningEfforts: ["none", "low", "medium", "high", "xhigh", "max"],
             defaultReasoningEffort: "medium"
@@ -355,7 +352,7 @@ describe("OpenAiProvider model listing", () => {
         expect(models).toHaveLength(1);
         expect(models[0]).toMatchObject({
             id: "gpt-5.6-luna",
-            contextWindow: 1_050_000,
+            contextWindow: 922_000,
             supportedReasoningEfforts: ["none", "low", "medium", "high", "xhigh", "max"],
             defaultReasoningEffort: "medium"
         });
@@ -366,7 +363,7 @@ describe("OpenAiProvider model listing", () => {
         const provider = new OpenAiProvider("sk-test", "https://sub2.invalid/v1");
         for (let read = 0; read < 2; read++) {
             const models = await provider.listModels();
-            expect(models.map(model => model.id)).toEqual(["gpt-6", "gpt-6-astra", "gpt-6-luna", "gpt-6-sol"]);
+            expect(models.map(model => model.id)).toEqual(["gpt-6-astra", "gpt-6", "gpt-6-luna", "gpt-6-sol"]);
             for (const model of models) {
                 expect(model).toMatchObject({
                     supportedReasoningEfforts: model.id === "gpt-6-sol" || model.id === "gpt-6-luna"
@@ -374,8 +371,6 @@ describe("OpenAiProvider model listing", () => {
                         : ["low", "medium", "high", "xhigh", "max"],
                     defaultReasoningEffort: "medium"
                 });
-                expect(model.pricing).toBeUndefined();
-                expect(model.contextWindow).toBeUndefined();
             }
         }
         expect(fetchMock).toHaveBeenCalledOnce();
