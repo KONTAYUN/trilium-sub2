@@ -1,5 +1,8 @@
 .llm-chat-reasoning-effort {
-    .llm-chat-reasoning-effort-icon {
-        margin-inline-end: 0.35em;
-    }
+    flex-shrink: 0;
+}
+
+/* Keep the short list wide enough for the longest translated level. */
+.llm-chat-reasoning-effort-menu {
+    min-width: 9rem;
 }

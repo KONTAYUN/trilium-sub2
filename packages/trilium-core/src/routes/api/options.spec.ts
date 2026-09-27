@@ -2,6 +2,7 @@ import type { UserFont } from "@triliumnext/commons";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import * as i18n from "../../services/i18n";
+import { getLog } from "../../services/log";
 import optionService from "../../services/options";
 import { getConfig, initConfig } from "../../services/config";
 import { getSql } from "../../services/sql/index";
@@ -205,6 +206,17 @@ describe("Options API (core)", () => {
         expect(res.body.isOpenaiApiKeySet).toBe("true");
         // the other secret was never written
         expect(res.body.isAnthropicApiKeySet).toBe("false");
+    });
+
+    it("redacts provider credentials from option update logs", async () => {
+        const info = vi.spyOn(getLog(), "info");
+        const providers = JSON.stringify([{ id: "provider-1", provider: "openai", apiKey: "sk-secret-value" }]);
+
+        const res = await api.put("/api/options", { body: { llmProviders: providers } });
+
+        expect(res.status).toBe(204);
+        expect(info).toHaveBeenCalledWith("Updating option 'llmProviders' to '[redacted]'");
+        expect(info.mock.calls.flat().join(" ")).not.toContain("sk-secret-value");
     });
 
     it("updates a single allowed option via PUT /api/options/:name/:value", async () => {

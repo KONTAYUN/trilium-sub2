@@ -2434,6 +2434,16 @@
     "sources": "來源",
     "sources_summary": "來自 {{sites}} 個網站的 {{count}} 個來源",
     "extended_thinking": "延伸思考",
+    "reasoning_effort_title": "思考強度: {{level}}",
+    "reasoning_effort_levels": {
+      "none": "無",
+      "minimal": "最低",
+      "low": "低",
+      "medium": "中",
+      "high": "高",
+      "xhigh": "極高",
+      "max": "最大"
+    },
     "reasoning_effort": "思考強度",
     "reasoning_effort_none": "無",
     "reasoning_effort_minimal": "最低",

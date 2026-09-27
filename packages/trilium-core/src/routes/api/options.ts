@@ -171,6 +171,13 @@ const WRITE_ONLY_OPTIONS = new Set<string>([
     "anthropicApiKey"
 ]);
 
+// Some structured options contain credentials even though the option itself must remain
+// readable by the client. Keep their update logs opaque rather than serializing the value.
+const SENSITIVE_LOG_OPTIONS = new Set<string>([
+    ...WRITE_ONLY_OPTIONS,
+    "llmProviders"
+]);
+
 function getOptions() {
     const optionMap = optionService.getOptionMap();
     const resultMap: Record<string, string> = {};
@@ -254,7 +261,7 @@ function update(name: string, value: string) {
     }
 
     if (name !== "openNoteContexts") {
-        const logValue = (WRITE_ONLY_OPTIONS as Set<string>).has(name)
+        const logValue = SENSITIVE_LOG_OPTIONS.has(name)
             ? "[redacted]"
             : value;
         getLog().info(`Updating option '${name}' to '${logValue}'`);

@@ -4,8 +4,7 @@ import type { LlmModelInfo, LlmReasoningEffort } from "@triliumnext/commons";
 
 import { t } from "../../../services/i18n.js";
 import Dropdown from "../../react/Dropdown.js";
-import { FormListItem } from "../../react/FormList.js";
-import Icon from "../../react/Icon.js";
+import { FormListHeader, FormListItem } from "../../react/FormList.js";
 
 /**
  * The reasoning effort picker of the chat input bar, for a model that lists
@@ -22,17 +21,22 @@ export default function ReasoningEffortDropdown({ model, value, onChange, disabl
 }) {
     const effective = effectiveReasoningEffort(model, value);
     const label = t(`llm_chat.reasoning_effort_levels.${effective}`);
+    const title = t("llm_chat.reasoning_effort_title", { level: label });
 
     return (
         <Dropdown
-            text={<>
-                <Icon icon="bx bx-brain" className="llm-chat-reasoning-effort-icon" />
-                <span className="llm-chat-model-select-name">{label}</span>
-            </>}
-            title={t("llm_chat.reasoning_effort_title", { level: label })}
+            // The active model can resolve its default asynchronously. Remounting on the
+            // translated title keeps Bootstrap's tooltip metadata in sync with that change.
+            key={title}
+            title={title}
             titlePosition="top"
-            buttonClassName="llm-chat-model-select"
+            iconAction
+            hideToggleArrow
+            noSelectButtonStyle
+            buttonClassName="llm-chat-capability llm-chat-reasoning-effort active bx bx-brain"
+            buttonProps={{ "aria-label": title }}
             className="llm-chat-reasoning-effort"
+            dropdownContainerClassName="llm-chat-reasoning-effort-menu"
             disabled={disabled}
             // A few items, so the menu never scrolls and keeps the working backdrop blur.
             noDropdownListStyle
@@ -40,6 +44,7 @@ export default function ReasoningEffortDropdown({ model, value, onChange, disabl
             portalToBody={inSidebar}
             dropdownOptions={inSidebar ? { popperConfig: { strategy: "fixed" } } : undefined}
         >
+            <FormListHeader text={t("llm_chat.reasoning_effort")} />
             {(model.reasoningEfforts ?? []).map(level => (
                 <FormListItem key={level} checked={level === effective} onClick={() => onChange(level)}>
                     {t(`llm_chat.reasoning_effort_levels.${level}`)}

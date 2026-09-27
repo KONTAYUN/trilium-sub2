@@ -10,13 +10,23 @@ vi.mock("../../../services/i18n.js", () => ({
 // Renders the toggle's face, its tooltip and class, and the menu, without Bootstrap;
 // the placement options go on data attributes.
 vi.mock("../../react/Dropdown.js", () => ({
-    default: ({ text, title, buttonClassName, children, portalToBody, dropdownOptions }: {
+    default: ({ text, title, buttonClassName, buttonProps, children, portalToBody, dropdownOptions, iconAction, hideToggleArrow, noSelectButtonStyle, dropdownContainerClassName }: {
         text: ComponentChildren; title?: string; buttonClassName?: string; children: ComponentChildren;
         portalToBody?: boolean; dropdownOptions?: { popperConfig?: { strategy?: string } };
+        buttonProps?: { "aria-label"?: string };
+        iconAction?: boolean; hideToggleArrow?: boolean; noSelectButtonStyle?: boolean;
+        dropdownContainerClassName?: string;
     }) => (
         <div className="dropdown-stub" data-portal={String(!!portalToBody)} data-strategy={dropdownOptions?.popperConfig?.strategy ?? "none"}>
-            <button className={buttonClassName} title={title}>{text}</button>
-            <div className="menu">{children}</div>
+            <button
+                className={buttonClassName}
+                title={title}
+                aria-label={buttonProps?.["aria-label"]}
+                data-icon-action={String(!!iconAction)}
+                data-hide-toggle-arrow={String(!!hideToggleArrow)}
+                data-no-select-button-style={String(!!noSelectButtonStyle)}
+            >{text}</button>
+            <div className={`menu ${dropdownContainerClassName ?? ""}`}>{children}</div>
         </div>
     )
 }));
@@ -73,13 +83,13 @@ describe("ReasoningEffortDropdown", () => {
     it("lists the model's levels, ticks the one in effect and picks another", () => {
         const { host, onChange } = renderDropdown(PRO, "medium");
 
-        // Only the levels: the toggle's tooltip already names the menu.
-        expect(host.querySelector(".menu")?.children.length).toBe(2);
+        expect(host.querySelector(".menu")?.children.length).toBe(3);
         const items = [ ...host.querySelectorAll<HTMLElement>(".menu .dropdown-item") ];
         expect(items.map(item => item.textContent?.trim())).toEqual([
             "llm_chat.reasoning_effort_levels.low",
             "llm_chat.reasoning_effort_levels.high"
         ]);
+        expect(host.querySelector(".menu .dropdown-header")?.textContent?.trim()).toBe("llm_chat.reasoning_effort");
         // Medium on Pro runs at the nearest level it offers, High, which is ticked.
         expect(items.map(item => item.classList.contains("checked") || !!item.querySelector(".bx-check"))).toEqual([ false, true ]);
         expect(host.querySelector("button")?.title).toBe("llm_chat.reasoning_effort_title(llm_chat.reasoning_effort_levels.high)");
@@ -88,10 +98,14 @@ describe("ReasoningEffortDropdown", () => {
         expect(onChange).toHaveBeenCalledWith("low");
     });
 
-    it("reads like the model picker: a combobox naming the level in effect", () => {
+    it("uses an icon-only button whose tooltip names the level in effect", () => {
         const button = renderDropdown(FLASH, "low").host.querySelector("button");
-        expect(button?.classList.contains("llm-chat-model-select")).toBe(true);
-        expect(button?.textContent).toBe("llm_chat.reasoning_effort_levels.low");
-        expect(button?.querySelector(".bx-brain")).not.toBeNull();
+        expect(button?.classList.contains("llm-chat-capability")).toBe(true);
+        expect(button?.textContent).toBe("");
+        expect(button?.getAttribute("aria-label")).toBe("llm_chat.reasoning_effort_title(llm_chat.reasoning_effort_levels.low)");
+        expect(button?.dataset.iconAction).toBe("true");
+        expect(button?.dataset.hideToggleArrow).toBe("true");
+        expect(button?.dataset.noSelectButtonStyle).toBe("true");
+        expect(button?.classList.contains("bx-brain")).toBe(true);
     });
 });
