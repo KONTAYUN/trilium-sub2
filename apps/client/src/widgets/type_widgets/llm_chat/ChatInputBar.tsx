@@ -1,7 +1,7 @@
 import "./ChatInputBar.css";
 
 import type { AttributeEditor as CKEditorAttributeEditor, CKTextEditor, MentionFeed } from "@triliumnext/ckeditor5";
-import type { DISPLAYABLE_LOCALE_IDS } from "@triliumnext/commons";
+import type { DISPLAYABLE_LOCALE_IDS, LlmReasoningEffort } from "@triliumnext/commons";
 import { Fragment } from "preact";
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 
@@ -33,17 +33,13 @@ const READ_ONLY_LOCK = "llm-chat-streaming";
 const mentionFeeds: MentionFeed[] = [
     {
         marker: "@",
-        feed: (queryText) => note_autocomplete.autocompleteSourceForCKEditor(queryText),
+        feed: (queryText) => note_autocomplete.autocompleteSourceForCKEditor(queryText, false),
         itemRenderer: (rawItem) => {
             const item = rawItem as Suggestion;
             const itemElement = document.createElement("button");
 
             const iconElement = document.createElement("span");
-            let iconClass = item.icon ?? "bx bx-note";
-            if (item.action === "create-note") {
-                iconClass = "bx bx-plus";
-            }
-            iconElement.className = iconClass;
+            iconElement.className = item.icon ?? "bx bx-note";
 
             itemElement.append(iconElement, document.createTextNode(" "));
             const titleContainer = document.createElement("span");
@@ -80,7 +76,7 @@ interface ChatInputBarProps {
     onWebSearchChange?: () => void;
     /** Callback when note tools toggle changes */
     onNoteToolsChange?: () => void;
-    /** Callback when extended thinking toggle changes */
+    /** Callback when the extended thinking switch or the reasoning effort changes */
     onExtendedThinkingChange?: () => void;
     /** Callback when OpenAI reasoning effort changes */
     onReasoningEffortChange?: () => void;
@@ -493,6 +489,15 @@ export default function ChatInputBar({
                                 </Fragment>
                             ))}
                         </Dropdown>
+                        {currentModel?.reasoningEfforts?.length ? (
+                            <ReasoningEffortDropdown
+                                model={currentModel}
+                                value={chat.reasoningEffort}
+                                onChange={handleReasoningEffortChange}
+                                disabled={chat.isStreaming}
+                                inSidebar={inSidebar}
+                            />
+                        ) : null}
                     </div>
                     {/* What the model can reach this turn. Lifted out of the model dropdown so
                         their state reads at a glance and flipping one is a single click — the

@@ -44,6 +44,8 @@ Known limitation of Stateless Responses: native OpenAI Web Search works normally
 
 Trilium Notes is a free and open-source, cross-platform hierarchical note taking application with focus on building large personal knowledge bases.
 
+Looking for "Trillium Notes"? The project's canonical spelling is "Trilium Notes", with one `l`.
+
 <img src="./docs/app.png" alt="Trilium Screenshot" width="1000">
 
 ## ⏬ Download

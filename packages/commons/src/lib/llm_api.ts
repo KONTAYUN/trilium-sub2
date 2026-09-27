@@ -98,6 +98,14 @@ export interface LlmCitation {
 }
 
 /**
+ * How much a model reasons before it answers, weakest first. The names are the
+ * AI SDK's `reasoning` call option, plus Anthropic's `max`.
+ */
+export const LLM_REASONING_EFFORTS = [ "none", "minimal", "low", "medium", "high", "xhigh", "max" ] as const;
+
+export type LlmReasoningEffort = (typeof LLM_REASONING_EFFORTS)[number];
+
+/**
  * Configuration for LLM chat requests.
  */
 export interface LlmChatConfig {
@@ -167,15 +175,23 @@ export interface LlmModelInfo {
     defaultReasoningEffort?: string;
     /** Whether usage is covered by a subscription plan rather than metered per token */
     isSubscription?: boolean;
+    /**
+     * The reasoning efforts the model can be run at, weakest first. Absent for a model with no
+     * graded setting, which keeps the on/off extended thinking switch instead.
+     */
+    reasoningEfforts?: LlmReasoningEffort[];
+    /** The effort used when a chat has not chosen one. One of {@link reasoningEfforts}. */
+    defaultReasoningEffort?: LlmReasoningEffort;
 }
 
 /**
  * Token usage information from the LLM response.
  */
 export interface LlmUsage {
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
+    /** The token counts are absent when the provider reports none, as the ACP agents (Copilot, Antigravity) do. */
+    promptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
     /** Estimated cost in USD (if available) */
     cost?: number;
     /** Model identifier used for this response */
@@ -209,10 +225,18 @@ export interface LlmErrorDetails {
 }
 
 /**
+ * What a turn is waiting on before its reply starts. The client names it in
+ * the chat until the first content of the reply arrives.
+ *   - `starting_agent`: a subscription agent's CLI is being started.
+ */
+export type LlmStreamStatus = "starting_agent";
+
+/**
  * Stream chunk types for real-time SSE updates.
  * Defines the protocol between server and client.
  */
 export type LlmStreamChunk =
+    | { type: "status"; status: LlmStreamStatus }
     | { type: "text"; content: string }
     | { type: "thinking"; content: string }
     | { type: "tool_input_start"; toolCallId: string; toolName: string }
